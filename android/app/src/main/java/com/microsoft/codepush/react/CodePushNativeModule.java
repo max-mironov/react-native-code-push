@@ -21,6 +21,8 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.modules.core.ChoreographerCompat;
 import com.facebook.react.modules.core.ReactChoreographer;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -47,6 +49,8 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
     private static final String REACT_APPLICATION_CLASS_NAME = "com.facebook.react.ReactApplication";
     private static final String REACT_NATIVE_HOST_CLASS_NAME = "com.facebook.react.ReactNativeHost";
 
+    private Gson mGson;
+
     public CodePushNativeModule(ReactApplicationContext reactContext, CodePush codePush, CodePushUpdateManager codePushUpdateManager, CodePushTelemetryManager codePushTelemetryManager, SettingsManager settingsManager) {
         super(reactContext);
 
@@ -58,6 +62,9 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
         // Initialize module state while we have a reference to the current context.
         mBinaryContentsHash = CodePushUpdateUtils.getHashForBinaryContents(reactContext, mCodePush.isDebugMode());
         mClientUniqueId = Settings.Secure.getString(reactContext.getContentResolver(), Settings.Secure.ANDROID_ID);
+
+        GsonBuilder builder = new GsonBuilder();
+        mGson = builder.create();
     }
 
     @Override
@@ -221,6 +228,24 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
         } catch (ClassNotFoundException e) {
             return null;
         }
+    }
+
+    @ReactMethod
+    public void checkForUpdate(final Promise promise) {
+        AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... params) {
+                CodePushRemotePackage remotePackage = mCodePush.checkForUpdate();
+                if (remotePackage != null) {
+                    promise.resolve(mGson.toJson(remotePackage, CodePushRemotePackage.class));
+                } else {
+                    promise.resolve("");
+                }
+                return null;
+            }
+        };
+
+        asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     @ReactMethod

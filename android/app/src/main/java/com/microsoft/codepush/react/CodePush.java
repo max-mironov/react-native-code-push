@@ -6,21 +6,19 @@ import com.facebook.react.bridge.JavaScriptModule;
 import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
+import com.google.gson.Gson;
 
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.provider.Settings;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 public class CodePush implements ReactPackage {
 
@@ -35,6 +33,7 @@ public class CodePush implements ReactPackage {
 
     // Helper classes.
     private CodePushUpdateManager mUpdateManager;
+    private CodePushUpdateManagerDeserializer mUpdateManagerDeserializer;
     private CodePushTelemetryManager mTelemetryManager;
     private SettingsManager mSettingsManager;
 
@@ -56,6 +55,7 @@ public class CodePush implements ReactPackage {
         mContext = context.getApplicationContext();
 
         mUpdateManager = new CodePushUpdateManager(context.getFilesDir().getAbsolutePath());
+        mUpdateManagerDeserializer = new CodePushUpdateManagerDeserializer(mUpdateManager);
         mTelemetryManager = new CodePushTelemetryManager(mContext);
         mDeploymentKey = deploymentKey;
         mIsDebugMode = isDebugMode;
@@ -300,5 +300,137 @@ public class CodePush implements ReactPackage {
     @Override
     public List<ViewManager> createViewManagers(ReactApplicationContext reactApplicationContext) {
         return new ArrayList<>();
+    }
+
+    public CodePushConfiguration getConfiguration() {
+        return new CodePushConfiguration(
+            sAppVersion,
+            Settings.Secure.getString(getContext().getContentResolver(), Settings.Secure.ANDROID_ID),
+            getDeploymentKey(),
+            getServerUrl(),
+            CodePushUpdateUtils.getHashForBinaryContents(getContext(), isDebugMode())
+        );
+    }
+
+    public CodePushRemotePackage checkForUpdate() {
+        CodePushConfiguration nativeConfiguration = getConfiguration();
+        return checkForUpdate(nativeConfiguration.DeploymentKey);
+    }
+
+    public CodePushRemotePackage checkForUpdate(String deploymentKey) {
+        CodePushConfiguration nativeConfiguration = getConfiguration();
+        CodePushConfiguration configuration = new CodePushConfiguration(
+                nativeConfiguration.AppVersion,
+                nativeConfiguration.ClientUniqueId,
+                deploymentKey != null ? deploymentKey : nativeConfiguration.DeploymentKey,
+                nativeConfiguration.ServerUrl,
+                nativeConfiguration.PackageHash
+        );
+
+        CodePushLocalPackage localPackage = getCurrentPackage();
+        CodePushLocalPackage queryPackage;
+
+        if (localPackage != null) {
+            queryPackage = localPackage;
+        } else {
+            queryPackage = new CodePushLocalPackage(configuration.AppVersion, "", "", false, false, false, false, "" , "");
+        }
+
+        CodePushAcquisitionManager acquisitionManager = new CodePushAcquisitionManager(configuration);
+
+        CodePushRemotePackage update = acquisitionManager.queryUpdateWithCurrentPackage(queryPackage);
+
+        if (update == null || (update.AppVersion == null || update.AppVersion.isEmpty())
+                || localPackage != null  && (update.PackageHash == localPackage.PackageHash)
+                && configuration.PackageHash == update.PackageHash) {
+            if (update != null && (update.AppVersion != null && !update.AppVersion.isEmpty())) {
+                CodePushUtils.log("An update is available but it is not targeting the binary version of your app.");
+            }
+            return null;
+        } else {
+            return new CodePushRemotePackage(
+                    update.AppVersion,
+                    deploymentKey != null ? deploymentKey : update.DeploymentKey,
+                    update.Description,
+                    isFailedUpdate(update.PackageHash),
+                    update.IsMandatory,
+                    update.Label,
+                    update.PackageHash,
+                    update.PackageSize,
+                    update.DownloadUrl
+            );
+        }
+    }
+
+    public CodePushLocalPackage getCurrentPackage() {
+        return getUpdateMetadata(CodePushUpdateState.LATEST);
+    }
+
+    public CodePushLocalPackage getUpdateMetadata(CodePushUpdateState updateState) {
+        CodePushLocalPackage currentPackage = mUpdateManagerDeserializer.getCurrentPackage();
+
+        if (currentPackage == null) {
+            return null;
+        }
+
+        Boolean currentUpdateIsPending = false;
+
+        if (currentPackage.PackageHash == null || currentPackage.PackageHash.isEmpty()) {
+            String currentHash = currentPackage.PackageHash;
+            currentUpdateIsPending = mSettingsManager.isPendingUpdate(currentHash);
+        }
+
+        if (updateState == CodePushUpdateState.PENDING && !currentUpdateIsPending) {
+            // The caller wanted a pending update
+            // but there isn't currently one.
+            return null;
+        } else if (updateState == CodePushUpdateState.RUNNING && currentUpdateIsPending) {
+            // The caller wants the running update, but the current
+            // one is pending, so we need to grab the previous.
+            CodePushLocalPackage previousPackage = mUpdateManagerDeserializer.getPreviousPackage();
+
+            if (previousPackage == null) {
+                return null;
+            }
+
+            return previousPackage;
+        } else {
+            // The current package satisfies the request:
+            // 1) Caller wanted a pending, and there is a pending update
+            // 2) Caller wanted the running update, and there isn't a pending
+            // 3) Caller wants the latest update, regardless if it's pending or not
+            if (isRunningBinaryVersion()) {
+                // This only matters in Debug builds. Since we do not clear "outdated" updates,
+                // we need to indicate to the JS side that somehow we have a current update on
+                // disk that is not actually running.
+
+                //CodePushUtils.setJSONValueForKey(currentPackage, "_isDebugOnly", true);
+            }
+
+            // Enable differentiating pending vs. non-pending updates
+            currentPackage = new CodePushLocalPackage(
+                    currentPackage.AppVersion,
+                    currentPackage.DeploymentKey,
+                    currentPackage.Description,
+                    currentPackage.FailedInstall,
+                    currentPackage.IsFirstRun,
+                    currentPackage.IsMandatory,
+                    currentUpdateIsPending,
+                    currentPackage.Label,
+                    currentPackage.PackageHash
+            );
+            return currentPackage;
+        }
+    }
+
+    private boolean isFailedUpdate(String packageHash) {
+        return mSettingsManager.isFailedHash(packageHash);
+    }
+
+    private boolean isFirstRun(String packageHash) {
+        return didUpdate()
+                && packageHash != null
+                && packageHash.length() > 0
+                && packageHash.equals(mUpdateManager.getCurrentPackageHash());
     }
 }
