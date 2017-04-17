@@ -32,7 +32,6 @@ public class CodePushAcquisitionManager {
     private String mAppVersion;
     private String mClientUniqueId;
     private String mDeploymentKey;
-    private Gson mGson;
 
     public CodePushAcquisitionManager(CodePushConfiguration configuration) {
         mServerUrl = configuration.ServerUrl;
@@ -42,9 +41,6 @@ public class CodePushAcquisitionManager {
         mAppVersion = configuration.AppVersion;
         mClientUniqueId = configuration.ClientUniqueId;
         mDeploymentKey = configuration.DeploymentKey;
-
-        GsonBuilder builder = new GsonBuilder();
-        mGson = builder.create();
     }
 
     public CodePushRemotePackage queryUpdateWithCurrentPackage(CodePushLocalPackage currentPackage) {
@@ -63,7 +59,7 @@ public class CodePushAcquisitionManager {
 
 
         try {
-            final String requestUrl = mServerUrl + "updateCheck?" + getQueryStringFromObject(updateRequest);
+            final String requestUrl = mServerUrl + "updateCheck?" + CodePushUtils.getQueryStringFromObject(updateRequest);
 
             AsyncTask<Void, Void, CodePushRemotePackage> asyncTask = new AsyncTask<Void, Void, CodePushRemotePackage>() {
                 @Override
@@ -75,7 +71,7 @@ public class CodePushAcquisitionManager {
                             InputStream inputStream = connection.getInputStream();
                             Scanner s = new Scanner(inputStream).useDelimiter("\\A");
                             String result = s.hasNext() ? s.next() : "";
-                            CodePushUpdateResponseUpdateInfo updateInfo = mGson.fromJson(result, CodePushUpdateResponse.class).UpdateInfo;
+                            CodePushUpdateResponseUpdateInfo updateInfo = CodePushUtils.convertStringToObject(result, CodePushUpdateResponse.class).UpdateInfo;
                             return new CodePushRemotePackage(
                                     updateInfo.AppVersion,
                                     mDeploymentKey,
@@ -113,19 +109,5 @@ public class CodePushAcquisitionManager {
 
     public void reportStatusDownload(CodePushLocalPackage downloadedPackage) {
         throw new UnsupportedOperationException();
-    }
-
-    private String getQueryStringFromObject(Object object) throws UnsupportedEncodingException {
-        JsonObject updateRequestJson = mGson.toJsonTree(object).getAsJsonObject();
-        Map<String, Object> updateRequestMap = new HashMap<String, Object>();
-        updateRequestMap = (Map<String, Object>) mGson.fromJson(updateRequestJson, updateRequestMap.getClass());
-        StringBuilder sb = new StringBuilder();
-        for (HashMap.Entry<String, Object> e : updateRequestMap.entrySet()) {
-            if (sb.length() > 0) {
-                sb.append('&');
-            }
-            sb.append(URLEncoder.encode(e.getKey(), "UTF-8")).append('=').append(URLEncoder.encode(e.getValue().toString(), "UTF-8"));
-        }
-        return sb.toString();
     }
 }

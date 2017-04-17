@@ -10,6 +10,9 @@ import com.facebook.react.bridge.ReadableMapKeySetIterator;
 import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -20,9 +23,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 public class CodePushUtils {
+    private static Gson mGson = new GsonBuilder().create();
 
     public static String appendPathComponent(String basePath, String appendPathComponent) {
         return new File(basePath, appendPathComponent).getAbsolutePath();
@@ -226,5 +234,27 @@ public class CodePushUtils {
     public static void writeJsonToFile(JSONObject json, String filePath) throws IOException {
         String jsonString = json.toString();
         FileUtils.writeStringToFile(jsonString, filePath);
+    }
+
+    public static JSONObject convertObjectToJsonObject(Object object) throws JSONException {
+        return new JSONObject(mGson.toJsonTree(object).toString());
+    }
+
+    public static <T> T convertStringToObject(String stringObject,  Class<T> classOfT) {
+        return mGson.fromJson(stringObject, classOfT);
+    }
+
+    public static String getQueryStringFromObject(Object object) throws UnsupportedEncodingException {
+        JsonObject updateRequestJson = mGson.toJsonTree(object).getAsJsonObject();
+        Map<String, Object> updateRequestMap = new HashMap<String, Object>();
+        updateRequestMap = (Map<String, Object>) mGson.fromJson(updateRequestJson, updateRequestMap.getClass());
+        StringBuilder sb = new StringBuilder();
+        for (HashMap.Entry<String, Object> e : updateRequestMap.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append('&');
+            }
+            sb.append(URLEncoder.encode(e.getKey(), "UTF-8")).append('=').append(URLEncoder.encode(e.getValue().toString(), "UTF-8"));
+        }
+        return sb.toString();
     }
 }

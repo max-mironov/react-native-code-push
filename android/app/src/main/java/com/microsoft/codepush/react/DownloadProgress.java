@@ -12,6 +12,14 @@ class DownloadProgress {
         mReceivedBytes = receivedBytes;
     }
 
+    public long getTotalBytes() {
+        return mTotalBytes;
+    }
+
+    public long getReceivedBytes() {
+        return mReceivedBytes;
+    }
+
     public WritableMap createWritableMap() {
         WritableMap map = new WritableNativeMap();
         if (mTotalBytes < Integer.MAX_VALUE) {
