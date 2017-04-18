@@ -13,9 +13,7 @@ import org.json.JSONObject;
 public class CodePushTelemetryManager {
     private SharedPreferences mSettings;
     private final String APP_VERSION_KEY = "appVersion";
-    private final String DEPLOYMENT_FAILED_STATUS = "DeploymentFailed";
     private final String DEPLOYMENT_KEY_KEY = "deploymentKey";
-    private final String DEPLOYMENT_SUCCEEDED_STATUS = "DeploymentSucceeded";
     private final String LABEL_KEY = "label";
     private final String LAST_DEPLOYMENT_REPORT_KEY = "CODE_PUSH_LAST_DEPLOYMENT_REPORT";
     private final String PACKAGE_KEY = "package";
@@ -72,7 +70,7 @@ public class CodePushTelemetryManager {
     public WritableMap getRollbackReport(WritableMap lastFailedPackage) {
         WritableMap reportMap =  Arguments.createMap();
         reportMap.putMap(PACKAGE_KEY, lastFailedPackage);
-        reportMap.putString(STATUS_KEY, DEPLOYMENT_FAILED_STATUS);
+        reportMap.putString(STATUS_KEY, CodePushDeploymentStatus.Failed);
         return reportMap;
     }
 
@@ -85,7 +83,7 @@ public class CodePushTelemetryManager {
                 this.clearRetryStatusReport();
                 reportMap = Arguments.createMap();
                 reportMap.putMap(PACKAGE_KEY, currentPackage);
-                reportMap.putString(STATUS_KEY, DEPLOYMENT_SUCCEEDED_STATUS);
+                reportMap.putString(STATUS_KEY, CodePushDeploymentStatus.Succeeded);
             } else if (!previousStatusReportIdentifier.equals(currentPackageIdentifier)) {
                 this.clearRetryStatusReport();
                 reportMap = Arguments.createMap();
@@ -93,13 +91,13 @@ public class CodePushTelemetryManager {
                     String previousDeploymentKey = this.getDeploymentKeyFromStatusReportIdentifier(previousStatusReportIdentifier);
                     String previousLabel = this.getVersionLabelFromStatusReportIdentifier(previousStatusReportIdentifier);
                     reportMap.putMap(PACKAGE_KEY, currentPackage);
-                    reportMap.putString(STATUS_KEY, DEPLOYMENT_SUCCEEDED_STATUS);
+                    reportMap.putString(STATUS_KEY, CodePushDeploymentStatus.Succeeded);
                     reportMap.putString(PREVIOUS_DEPLOYMENT_KEY_KEY, previousDeploymentKey);
                     reportMap.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, previousLabel);
                 } else {
                     // Previous status report was with a binary app version.
                     reportMap.putMap(PACKAGE_KEY, currentPackage);
-                    reportMap.putString(STATUS_KEY, DEPLOYMENT_SUCCEEDED_STATUS);
+                    reportMap.putString(STATUS_KEY, CodePushDeploymentStatus.Succeeded);
                     reportMap.putString(PREVIOUS_LABEL_OR_APP_VERSION_KEY, previousStatusReportIdentifier);
                 }
             }
@@ -110,7 +108,7 @@ public class CodePushTelemetryManager {
 
     public void recordStatusReported(ReadableMap statusReport) {
         // We don't need to record rollback reports, so exit early if that's what was specified.
-        if (statusReport.hasKey(STATUS_KEY) && DEPLOYMENT_FAILED_STATUS.equals(statusReport.getString(STATUS_KEY))) {
+        if (statusReport.hasKey(STATUS_KEY) && CodePushDeploymentStatus.Failed.equals(statusReport.getString(STATUS_KEY))) {
             return;
         }
         
@@ -118,6 +116,19 @@ public class CodePushTelemetryManager {
             saveStatusReportedForIdentifier(statusReport.getString(APP_VERSION_KEY));
         } else if (statusReport.hasKey(PACKAGE_KEY)) {
             String packageIdentifier = getPackageStatusReportIdentifier(statusReport.getMap(PACKAGE_KEY));
+            saveStatusReportedForIdentifier(packageIdentifier);
+        }
+    }
+
+    public void recordStatusReported(CodePushStatusReport statusReport) {
+        if (statusReport.Status != null && statusReport.Status.equals(CodePushDeploymentStatus.Failed)) {
+            return;
+        }
+
+        if (statusReport.AppVersion != null && !statusReport.AppVersion.isEmpty()) {
+            saveStatusReportedForIdentifier(statusReport.AppVersion);
+        } else if (statusReport.Package != null) {
+            String packageIdentifier = getPackageStatusReportIdentifier(statusReport.Package);
             saveStatusReportedForIdentifier(packageIdentifier);
         }
     }
@@ -135,6 +146,18 @@ public class CodePushTelemetryManager {
         String[] parsedIdentifier = statusReportIdentifier.split(":");
         if (parsedIdentifier.length > 0) {
             return parsedIdentifier[0];
+        } else {
+            return null;
+        }
+    }
+
+    private String getPackageStatusReportIdentifier(CodePushLocalPackage updatePackage) {
+        // Because deploymentKeys can be dynamically switched, we use a
+        // combination of the deploymentKey and label as the packageIdentifier.
+        String deploymentKey = updatePackage.DeploymentKey;
+        String label = updatePackage.DeploymentKey;
+        if (deploymentKey != null && label != null) {
+            return deploymentKey + ":" + label;
         } else {
             return null;
         }

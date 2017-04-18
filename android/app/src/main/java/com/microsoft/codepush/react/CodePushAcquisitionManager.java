@@ -2,30 +2,18 @@ package com.microsoft.codepush.react;
 
 import android.os.AsyncTask;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-
-import org.json.JSONObject;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLEncoder;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.HttpsURLConnection;
-
-/**
- * Created by sergey.akhalkov on 4/12/2017.
- */
 
 public class CodePushAcquisitionManager {
     private String mServerUrl;
@@ -57,7 +45,6 @@ public class CodePushAcquisitionManager {
                 mClientUniqueId
         );
 
-
         try {
             final String requestUrl = mServerUrl + "updateCheck?" + CodePushUtils.getQueryStringFromObject(updateRequest);
 
@@ -83,31 +70,140 @@ public class CodePushAcquisitionManager {
                                     updateInfo.PackageSize,
                                     updateInfo.DownloadUrl);
                         }
-                    } catch (MalformedURLException exception) {
-
-                    } catch (IOException exception) {
-
+                    } catch (MalformedURLException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
                     return null;
                 }
             };
 
             return asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR).get();
-        } catch (UnsupportedEncodingException exception) {
-
-        } catch (ExecutionException exception) {
-
-        } catch (InterruptedException exctption) {
-
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
         return null;
     }
 
-    public void reportStatusDeploy(CodePushLocalPackage deployedPackage, String status, String previousLabelOrAppVersion, String previousDeploymentKey) {
-        throw new UnsupportedOperationException();
+    public void reportStatusDeploy(CodePushStatusReport statusReport) {
+        final String requestUrl = mServerUrl + "reportStatus/download";
+
+        if (statusReport.Package != null) {
+            switch (statusReport.Status) {
+                case CodePushDeploymentStatus.Succeeded:
+                case CodePushDeploymentStatus.Failed:
+                    break;
+                default: {
+                    if (statusReport.Status == null) {
+                        throw new IllegalArgumentException("Missing status argument.");
+                    } else {
+                        throw new IllegalArgumentException("Unrecognized status \"" + statusReport.Status + "\".");
+                    }
+                }
+            }
+        }
+
+        final CodePushDeploymentStatusReport deploymentStatusReport =
+                new CodePushDeploymentStatusReport(
+                        statusReport.Package != null ? statusReport.Package.AppVersion : mAppVersion,
+                        mDeploymentKey,
+                        mClientUniqueId,
+                        statusReport.PreviousDeploymentKey,
+                        statusReport.PreviousLabelOrAppVersion,
+                        statusReport.Package != null ? statusReport.Package.Label : null,
+                        statusReport.Status
+                );
+        final String deploymentStatusReportJsonString = CodePushUtils.convertObjectToJsonString(deploymentStatusReport);
+
+        AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... params) {
+                try {
+                    URL url = new URL(requestUrl);
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setDoInput(true);
+                    connection.setDoOutput(true);
+                    connection.setUseCaches(false);
+                    connection.setRequestMethod("POST");
+                    connection.setRequestProperty("Content-Type","application/json");
+                    connection.connect();
+
+                    OutputStream os = connection.getOutputStream();
+                    OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
+                    osw.write(deploymentStatusReportJsonString);
+                    osw.flush();
+                    osw.close();
+                    os.close();
+
+                    InputStream stream;
+                    if (connection.getResponseCode() == 200) {
+                        stream = connection.getInputStream();
+                    } else  {
+                        stream = connection.getErrorStream();
+                    }
+                    Scanner s = new Scanner(stream).useDelimiter("\\A");
+                    String result = s.hasNext() ? s.next() : "";
+                    CodePushUtils.log("Report status deploy: " + result);
+                } catch (MalformedURLException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                return null;
+            }
+        };
+
+        asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     public void reportStatusDownload(CodePushLocalPackage downloadedPackage) {
-        throw new UnsupportedOperationException();
+        final String requestUrl = mServerUrl + "reportStatus/download";
+        final CodePushDownloadStatusReport downloadStatusReport = new CodePushDownloadStatusReport(mClientUniqueId, mDeploymentKey, downloadedPackage.Label);
+        final String downloadStatusReportJsonString = CodePushUtils.convertObjectToJsonString(downloadStatusReport);
+
+        AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... params) {
+                try {
+                    URL url = new URL(requestUrl);
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setDoInput(true);
+                    connection.setDoOutput(true);
+                    connection.setUseCaches(false);
+                    connection.setRequestMethod("POST");
+                    connection.setRequestProperty("Content-Type","application/json");
+                    connection.connect();
+
+                    OutputStream os = connection.getOutputStream();
+                    OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
+                    osw.write(downloadStatusReportJsonString);
+                    osw.flush();
+                    osw.close();
+                    os.close();
+
+                    InputStream stream;
+                    if (connection.getResponseCode() == 200) {
+                        stream = connection.getInputStream();
+                    } else  {
+                        stream = connection.getErrorStream();
+                    }
+                    Scanner s = new Scanner(stream).useDelimiter("\\A");
+                    String result = s.hasNext() ? s.next() : "";
+                    CodePushUtils.log("Report status download: " + result);
+                } catch (MalformedURLException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                return null;
+            }
+        };
+
+        asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 }

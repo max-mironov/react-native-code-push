@@ -236,8 +236,31 @@ public class CodePushUtils {
         FileUtils.writeStringToFile(jsonString, filePath);
     }
 
-    public static JSONObject convertObjectToJsonObject(Object object) throws JSONException {
-        return new JSONObject(mGson.toJsonTree(object).toString());
+    public static JSONObject convertObjectToJsonObject(Object object) {
+        try {
+            return new JSONObject(mGson.toJsonTree(object).toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+            throw new CodePushMalformedDataException(e.toString(), e);
+        }
+    }
+
+    public static String convertObjectToJsonString(Object object) {
+        return mGson.toJsonTree(object).toString();
+    }
+
+    public static <T> T convertJsonObjectToObject(JSONObject jsonObject,  Class<T> classOfT) {
+        return convertStringToObject(jsonObject.toString(), classOfT);
+    }
+
+    public static <T> T convertWritableMapToObject(WritableMap writableMap,  Class<T> classOfT) {
+        try {
+            JSONObject jsonObject = new JSONObject(writableMap.toString()).optJSONObject("NativeMap");
+            return convertJsonObjectToObject(jsonObject, classOfT);
+        } catch (JSONException e) {
+            e.printStackTrace();
+            throw new CodePushMalformedDataException(e.toString(), e);
+        }
     }
 
     public static <T> T convertStringToObject(String stringObject,  Class<T> classOfT) {

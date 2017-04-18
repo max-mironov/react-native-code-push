@@ -78,13 +78,8 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
             protected Void doInBackground(Void... params) {
                 CodePushRemotePackage remotePackage = mCodePush.checkForUpdate();
                 if (remotePackage != null) {
-                    try {
-                        JSONObject jsonObject = CodePushUtils.convertObjectToJsonObject(remotePackage);
-                        promise.resolve(CodePushUtils.convertJsonObjectToWritable(jsonObject));
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                        promise.reject(e);
-                    }
+                    JSONObject jsonObject = CodePushUtils.convertObjectToJsonObject(remotePackage);
+                    promise.resolve(CodePushUtils.convertJsonObjectToWritable(jsonObject));
                 } else {
                     promise.resolve("");
                 }
@@ -402,7 +397,7 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void notifyApplicationReady(Promise promise) {
-        mCodePush.notifyApplicationReady();
+        mSettingsManager.removePendingUpdate();
         promise.resolve("");
     }
 

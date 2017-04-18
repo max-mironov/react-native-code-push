@@ -1,9 +1,5 @@
 package com.microsoft.codepush.react;
 
-/**
- * Created by sergey.akhalkov on 4/11/2017.
- */
-
 public final class CodePushConfiguration {
     public final String AppVersion;
     public final String ClientUniqueId;

@@ -2,10 +2,6 @@ package com.microsoft.codepush.react;
 
 import com.google.gson.annotations.SerializedName;
 
-/**
- * Created by sergey.akhalkov on 4/11/2017.
- */
-
 public class CodePushPackage {
     @SerializedName("appVersion")
     public final String AppVersion;
