@@ -267,7 +267,7 @@ public class CodePushUtils {
         return mGson.fromJson(stringObject, classOfT);
     }
 
-    public static String getQueryStringFromObject(Object object) throws UnsupportedEncodingException {
+    public static String getQueryStringFromObject(Object object) {
         JsonObject updateRequestJson = mGson.toJsonTree(object).getAsJsonObject();
         Map<String, Object> updateRequestMap = new HashMap<String, Object>();
         updateRequestMap = (Map<String, Object>) mGson.fromJson(updateRequestJson, updateRequestMap.getClass());
@@ -276,7 +276,12 @@ public class CodePushUtils {
             if (sb.length() > 0) {
                 sb.append('&');
             }
-            sb.append(URLEncoder.encode(e.getKey(), "UTF-8")).append('=').append(URLEncoder.encode(e.getValue().toString(), "UTF-8"));
+            try {
+                sb.append(URLEncoder.encode(e.getKey(), "UTF-8")).append('=').append(URLEncoder.encode(e.getValue().toString(), "UTF-8"));
+            } catch (UnsupportedEncodingException exception) {
+                exception.printStackTrace();
+                throw new CodePushMalformedDataException(exception.toString(), exception);
+            }
         }
         return sb.toString();
     }

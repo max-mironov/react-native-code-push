@@ -36,12 +36,12 @@ public class CodePush implements ReactPackage {
 
     public CodePush(String deploymentKey, Context context, boolean isDebugMode) {
         mCodePushCore = new CodePushCore(deploymentKey, context, isDebugMode);
-        mRestartManager = new CodePushRestartManager(mCodePushCore);
+        mRestartManager = mCodePushCore.getRestartManager();
     }
 
     public CodePush(String deploymentKey, Context context, boolean isDebugMode, String serverUrl) {
         mCodePushCore = new CodePushCore(deploymentKey, context, isDebugMode, serverUrl);
-        mRestartManager = new CodePushRestartManager(mCodePushCore);
+        mRestartManager = mCodePushCore.getRestartManager();
     }
 
     public static String getJSBundleFile() {
@@ -114,5 +114,13 @@ public class CodePush implements ReactPackage {
 
     public void sync(CodePushSyncOptions syncOptions) {
         mCodePushCore.sync(syncOptions);
+    }
+
+    public void addSyncStatusListener(CodePushSyncStatusListener syncStatusListener) {
+        mCodePushCore.addSyncStatusListener(syncStatusListener);
+    }
+
+    public void addDownloadProgressListener(CodePushDownloadProgressListener downloadProgressListener) {
+        mCodePushCore.addDownloadProgressListener(downloadProgressListener);
     }
 }

@@ -6,12 +6,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Scanner;
-import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -45,76 +43,59 @@ public class CodePushAcquisitionManager {
                 mClientUniqueId
         );
 
+        final String requestUrl = mServerUrl + "updateCheck?" + CodePushUtils.getQueryStringFromObject(updateRequest);
         try {
-            final String requestUrl = mServerUrl + "updateCheck?" + CodePushUtils.getQueryStringFromObject(updateRequest);
-
-            AsyncTask<Void, Void, CodePushRemotePackage> asyncTask = new AsyncTask<Void, Void, CodePushRemotePackage>() {
-                @Override
-                protected CodePushRemotePackage doInBackground(Void... params) {
-                    try {
-                        URL url = new URL(requestUrl);
-                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                        if(connection.getResponseCode() == HttpsURLConnection.HTTP_OK){
-                            InputStream inputStream = connection.getInputStream();
-                            Scanner s = new Scanner(inputStream).useDelimiter("\\A");
-                            String result = s.hasNext() ? s.next() : "";
-                            CodePushUpdateResponseUpdateInfo updateInfo = CodePushUtils.convertStringToObject(result, CodePushUpdateResponse.class).UpdateInfo;
-                            if (updateInfo == null) {
-                                throw new CodePushUnknownException(result);
-                            } else if (updateInfo.UpdateAppVersion) {
-                                return new CodePushRemotePackage(
-                                        updateInfo.AppVersion,
-                                        null,
-                                        null,
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        0,
-                                        null,
-                                        updateInfo.UpdateAppVersion);
-                            } else if (!updateInfo.IsAvailable) {
-                                return null;
-                            }
-
-                            return new CodePushRemotePackage(
-                                    updateInfo.AppVersion,
-                                    mDeploymentKey,
-                                    updateInfo.Description,
-                                    false,
-                                    updateInfo.IsMandatory,
-                                    updateInfo.Label,
-                                    updateInfo.PackageHash,
-                                    updateInfo.PackageSize,
-                                    updateInfo.DownloadUrl,
-                                    updateInfo.UpdateAppVersion);
-                        } else {
-                            InputStream inputStream = connection.getErrorStream();
-                            Scanner s = new Scanner(inputStream).useDelimiter("\\A");
-                            String result = s.hasNext() ? s.next() : "";
-                            CodePushUtils.log(result);
-                        }
-                    } catch (MalformedURLException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+            URL url = new URL(requestUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            if(connection.getResponseCode() == HttpsURLConnection.HTTP_OK){
+                InputStream inputStream = connection.getInputStream();
+                Scanner s = new Scanner(inputStream).useDelimiter("\\A");
+                String result = s.hasNext() ? s.next() : "";
+                CodePushUpdateResponseUpdateInfo updateInfo = CodePushUtils.convertStringToObject(result, CodePushUpdateResponse.class).UpdateInfo;
+                if (updateInfo == null) {
+                    throw new CodePushUnknownException(result);
+                } else if (updateInfo.UpdateAppVersion) {
+                    return new CodePushRemotePackage(
+                            updateInfo.AppVersion,
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            null,
+                            0,
+                            null,
+                            updateInfo.UpdateAppVersion);
+                } else if (!updateInfo.IsAvailable) {
                     return null;
                 }
-            };
 
-            return asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR).get();
-        } catch (UnsupportedEncodingException e) {
+                return new CodePushRemotePackage(
+                        updateInfo.AppVersion,
+                        mDeploymentKey,
+                        updateInfo.Description,
+                        false,
+                        updateInfo.IsMandatory,
+                        updateInfo.Label,
+                        updateInfo.PackageHash,
+                        updateInfo.PackageSize,
+                        updateInfo.DownloadUrl,
+                        updateInfo.UpdateAppVersion);
+            } else {
+                InputStream inputStream = connection.getErrorStream();
+                Scanner s = new Scanner(inputStream).useDelimiter("\\A");
+                String result = s.hasNext() ? s.next() : "";
+                CodePushUtils.log(result);
+            }
+        } catch (MalformedURLException e) {
             e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
         return null;
-    }
+    };
 
-    public void reportStatusDeploy(CodePushStatusReport statusReport) {
+    public boolean reportStatusDeploy(CodePushStatusReport statusReport) {
         final String requestUrl = mServerUrl + "reportStatus/download";
 
         if (statusReport.Package != null) {
@@ -144,45 +125,42 @@ public class CodePushAcquisitionManager {
                 );
         final String deploymentStatusReportJsonString = CodePushUtils.convertObjectToJsonString(deploymentStatusReport);
 
-        AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected Void doInBackground(Void... params) {
-                try {
-                    URL url = new URL(requestUrl);
-                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                    connection.setDoInput(true);
-                    connection.setDoOutput(true);
-                    connection.setUseCaches(false);
-                    connection.setRequestMethod("POST");
-                    connection.setRequestProperty("Content-Type","application/json");
-                    connection.connect();
+        try {
+            URL url = new URL(requestUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+            connection.setUseCaches(false);
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type","application/json");
+            connection.connect();
 
-                    OutputStream os = connection.getOutputStream();
-                    OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
-                    osw.write(deploymentStatusReportJsonString);
-                    osw.flush();
-                    osw.close();
-                    os.close();
+            OutputStream os = connection.getOutputStream();
+            OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
+            osw.write(deploymentStatusReportJsonString);
+            osw.flush();
+            osw.close();
+            os.close();
 
-                    InputStream stream;
-                    if (connection.getResponseCode() == HttpsURLConnection.HTTP_OK) {
-                        stream = connection.getInputStream();
-                    } else  {
-                        stream = connection.getErrorStream();
-                    }
-                    Scanner s = new Scanner(stream).useDelimiter("\\A");
-                    String result = s.hasNext() ? s.next() : "";
-                    CodePushUtils.log("Report status deploy: " + result);
-                } catch (MalformedURLException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                return null;
+            InputStream stream;
+            if (connection.getResponseCode() == HttpsURLConnection.HTTP_OK) {
+                stream = connection.getInputStream();
+                Scanner s = new Scanner(stream).useDelimiter("\\A");
+                String result = s.hasNext() ? s.next() : "";
+                CodePushUtils.log("Report status deploy: " + result);
+                return true;
+            } else  {
+                stream = connection.getErrorStream();
+                Scanner s = new Scanner(stream).useDelimiter("\\A");
+                String result = s.hasNext() ? s.next() : "";
+                CodePushUtils.log("Report status deploy: " + result);
             }
-        };
-
-        asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     public void reportStatusDownload(CodePushLocalPackage downloadedPackage) {

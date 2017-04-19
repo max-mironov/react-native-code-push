@@ -7,14 +7,12 @@ import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.ChoreographerCompat;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.modules.core.ReactChoreographer;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -30,7 +28,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 public class CodePushCore {
     private static boolean sIsRunningBinaryVersion = false;
@@ -76,7 +73,7 @@ public class CodePushCore {
         mSyncStatusListeners.add(syncStatusListener);
     }
 
-    public void addDownloadProgress(CodePushDownloadProgressListener downloadProgressListener) {
+    public void addDownloadProgressListener(CodePushDownloadProgressListener downloadProgressListener) {
         mDownloadProgressListeners.add(downloadProgressListener);
     }
 
@@ -140,6 +137,7 @@ public class CodePushCore {
         mDeploymentKey = deploymentKey;
         mIsDebugMode = isDebugMode;
         mSettingsManager = new SettingsManager(mContext);
+        mRestartManager = new CodePushRestartManager(this);
 
         if (sAppVersion == null) {
             try {
@@ -218,7 +216,7 @@ public class CodePushCore {
 
     public static String getJSBundleFile(String assetsBundleFileName) {
         if (mCurrentInstance == null) {
-            throw new CodePushNotInitializedException("A CodePushCore instance has not been created yet. Have you added it to your app's list of ReactPackages?");
+            throw new CodePushNotInitializedException("A CodePush instance has not been created yet. Have you added it to your app's list of ReactPackages?");
         }
 
         return mCurrentInstance.getJSBundleFileInternal(assetsBundleFileName);
@@ -548,166 +546,134 @@ public class CodePushCore {
             installUpdate(localPackage, resolvedInstallMode, syncOptions.MinimumBackgroundDuration);
             syncStatusChange(CodePushSyncStatus.UPDATE_INSTALLED);
             mSyncInProgress = false;
+            if(resolvedInstallMode == CodePushInstallMode.IMMEDIATE) {
+                mRestartManager.restartApp(false);
+            } else {
+                mRestartManager.clearPendingRestart();
+            }
         }
     }
 
     private CodePushLocalPackage downloadUpdate(final CodePushRemotePackage updatePackage) {
         try {
-            AsyncTask<Void, Void, CodePushLocalPackage> asyncTask = new AsyncTask<Void, Void, CodePushLocalPackage>() {
+            JSONObject mutableUpdatePackage = CodePushUtils.convertObjectToJsonObject(updatePackage);
+            CodePushUtils.setJSONValueForKey(mutableUpdatePackage, CodePushConstants.BINARY_MODIFIED_TIME_KEY, "" + getBinaryResourcesModifiedTime());
+            mUpdateManager.downloadPackage(mutableUpdatePackage, getAssetsBundleFileName(), new DownloadProgressCallback() {
+                private boolean hasScheduledNextFrame = false;
+                private DownloadProgress latestDownloadProgress = null;
+
                 @Override
-                protected CodePushLocalPackage doInBackground(Void... params) {
-                    try {
-                        JSONObject mutableUpdatePackage = CodePushUtils.convertObjectToJsonObject(updatePackage);
-                        CodePushUtils.setJSONValueForKey(mutableUpdatePackage, CodePushConstants.BINARY_MODIFIED_TIME_KEY, "" + getBinaryResourcesModifiedTime());
-                        mUpdateManager.downloadPackage(mutableUpdatePackage, getAssetsBundleFileName(), new DownloadProgressCallback() {
-                            private boolean hasScheduledNextFrame = false;
-                            private DownloadProgress latestDownloadProgress = null;
-
-                            @Override
-                            public void call(final DownloadProgress downloadProgress) {
-                                latestDownloadProgress = downloadProgress;
-                                // If the download is completed, synchronously send the last event.
-                                if (latestDownloadProgress.isCompleted()) {
-                                    downloadProgressChange(downloadProgress.getReceivedBytes(), downloadProgress.getTotalBytes());
-                                    dispatchDownloadProgressEvent();
-                                    return;
-                                }
-
-                                if (hasScheduledNextFrame) {
-                                    return;
-                                }
-
-                                hasScheduledNextFrame = true;
-                                mReactApplicationContext.runOnUiQueueThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        ReactChoreographer.getInstance().postFrameCallback(ReactChoreographer.CallbackType.TIMERS_EVENTS, new ChoreographerCompat.FrameCallback() {
-                                            @Override
-                                            public void doFrame(long frameTimeNanos) {
-                                                if (!latestDownloadProgress.isCompleted()) {
-                                                    downloadProgressChange(downloadProgress.getReceivedBytes(), downloadProgress.getTotalBytes());
-                                                    dispatchDownloadProgressEvent();
-                                                }
-
-                                                hasScheduledNextFrame = false;
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-
-                            public void dispatchDownloadProgressEvent() {
-                                mReactApplicationContext
-                                        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                                        .emit(CodePushConstants.DOWNLOAD_PROGRESS_EVENT_NAME, latestDownloadProgress.createWritableMap());
-                            }
-                        });
-
-                        CodePushLocalPackage newPackage = mUpdateManagerDeserializer.getPackage(updatePackage.PackageHash);
-                        return newPackage;
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    } catch (CodePushInvalidUpdateException e) {
-                        e.printStackTrace();
-                        mSettingsManager.saveFailedUpdate(CodePushUtils.convertObjectToJsonObject(updatePackage));
+                public void call(final DownloadProgress downloadProgress) {
+                    latestDownloadProgress = downloadProgress;
+                    // If the download is completed, synchronously send the last event.
+                    if (latestDownloadProgress.isCompleted()) {
+                        downloadProgressChange(downloadProgress.getReceivedBytes(), downloadProgress.getTotalBytes());
+                        return;
                     }
 
-                    return null;
-                }
-            };
+                    if (hasScheduledNextFrame) {
+                        return;
+                    }
 
-            return asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR).get();
-        } catch (InterruptedException e) {
+                    hasScheduledNextFrame = true;
+                    mReactApplicationContext.runOnUiQueueThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            ReactChoreographer.getInstance().postFrameCallback(ReactChoreographer.CallbackType.TIMERS_EVENTS, new ChoreographerCompat.FrameCallback() {
+                                @Override
+                                public void doFrame(long frameTimeNanos) {
+                                    if (!latestDownloadProgress.isCompleted()) {
+                                        downloadProgressChange(downloadProgress.getReceivedBytes(), downloadProgress.getTotalBytes());
+                                    }
+
+                                    hasScheduledNextFrame = false;
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            CodePushLocalPackage newPackage = mUpdateManagerDeserializer.getPackage(updatePackage.PackageHash);
+            return newPackage;
+        } catch (IOException e) {
             e.printStackTrace();
-        } catch (ExecutionException e) {
+        } catch (CodePushInvalidUpdateException e) {
             e.printStackTrace();
+            mSettingsManager.saveFailedUpdate(CodePushUtils.convertObjectToJsonObject(updatePackage));
         }
 
         return null;
     }
 
     private void installUpdate(final CodePushLocalPackage updatePackage, final CodePushInstallMode installMode, final int minimumBackgroundDuration) {
-        try {
-            AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
-                @Override
-                protected Void doInBackground(Void... params) {
-                    mUpdateManager.installPackage(CodePushUtils.convertObjectToJsonObject(updatePackage), mSettingsManager.isPendingUpdate(null));
+        mUpdateManager.installPackage(CodePushUtils.convertObjectToJsonObject(updatePackage), mSettingsManager.isPendingUpdate(null));
 
-                    String pendingHash = updatePackage.PackageHash;
-                    if (pendingHash == null) {
-                        throw new CodePushUnknownException("Update package to be installed has no hash.");
-                    } else {
-                        mSettingsManager.savePendingUpdate(pendingHash, /* isLoading */false);
-                    }
+        String pendingHash = updatePackage.PackageHash;
+        if (pendingHash == null) {
+            throw new CodePushUnknownException("Update package to be installed has no hash.");
+        } else {
+            mSettingsManager.savePendingUpdate(pendingHash, /* isLoading */false);
+        }
 
-                    if (installMode == CodePushInstallMode.ON_NEXT_RESUME ||
-                            // We also add the resume listener if the installMode is IMMEDIATE, because
-                            // if the current activity is backgrounded, we want to reload the bundle when
-                            // it comes back into the foreground.
-                            installMode == CodePushInstallMode.IMMEDIATE ||
-                            installMode == CodePushInstallMode.ON_NEXT_SUSPEND) {
+        if (installMode == CodePushInstallMode.ON_NEXT_RESUME ||
+                // We also add the resume listener if the installMode is IMMEDIATE, because
+                // if the current activity is backgrounded, we want to reload the bundle when
+                // it comes back into the foreground.
+                installMode == CodePushInstallMode.IMMEDIATE ||
+                installMode == CodePushInstallMode.ON_NEXT_SUSPEND) {
 
-                        // Store the minimum duration on the native module as an instance
-                        // variable instead of relying on a closure below, so that any
-                        // subsequent resume-based installs could override it.
-                        mMinimumBackgroundDuration = minimumBackgroundDuration;
+            // Store the minimum duration on the native module as an instance
+            // variable instead of relying on a closure below, so that any
+            // subsequent resume-based installs could override it.
+            mMinimumBackgroundDuration = minimumBackgroundDuration;
 
-                        if (mLifecycleEventListener == null) {
-                            // Ensure we do not add the listener twice.
-                            mLifecycleEventListener = new LifecycleEventListener() {
-                                private Date lastPausedDate = null;
-                                private Handler appSuspendHandler = new Handler(Looper.getMainLooper());
-                                private Runnable loadBundleRunnable = new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        CodePushUtils.log("Loading bundle on suspend");
-                                        loadBundle();
-                                    }
-                                };
+            if (mLifecycleEventListener == null) {
+                // Ensure we do not add the listener twice.
+                mLifecycleEventListener = new LifecycleEventListener() {
+                    private Date lastPausedDate = null;
+                    private Handler appSuspendHandler = new Handler(Looper.getMainLooper());
+                    private Runnable loadBundleRunnable = new Runnable() {
+                        @Override
+                        public void run() {
+                            CodePushUtils.log("Loading bundle on suspend");
+                            mRestartManager.restartApp(false);
+                        }
+                    };
 
-                                @Override
-                                public void onHostResume() {
-                                    appSuspendHandler.removeCallbacks(loadBundleRunnable);
-                                    // As of RN 36, the resume handler fires immediately if the app is in
-                                    // the foreground, so explicitly wait for it to be backgrounded first
-                                    if (lastPausedDate != null) {
-                                        long durationInBackground = (new Date().getTime() - lastPausedDate.getTime()) / 1000;
-                                        if (installMode == CodePushInstallMode.IMMEDIATE
-                                                || durationInBackground >= mMinimumBackgroundDuration) {
-                                            CodePushUtils.log("Loading bundle on resume");
-                                            loadBundle();
-                                        }
-                                    }
-                                }
-
-                                @Override
-                                public void onHostPause() {
-                                    // Save the current time so that when the app is later
-                                    // resumed, we can detect how long it was in the background.
-                                    lastPausedDate = new Date();
-
-                                    if (installMode == CodePushInstallMode.ON_NEXT_SUSPEND && mSettingsManager.isPendingUpdate(null)) {
-                                        appSuspendHandler.postDelayed(loadBundleRunnable, minimumBackgroundDuration * 1000);
-                                    }
-                                }
-
-                                @Override
-                                public void onHostDestroy() {
-                                }
-                            };
-
-                            mReactApplicationContext.addLifecycleEventListener(mLifecycleEventListener);
+                    @Override
+                    public void onHostResume() {
+                        appSuspendHandler.removeCallbacks(loadBundleRunnable);
+                        // As of RN 36, the resume handler fires immediately if the app is in
+                        // the foreground, so explicitly wait for it to be backgrounded first
+                        if (lastPausedDate != null) {
+                            long durationInBackground = (new Date().getTime() - lastPausedDate.getTime()) / 1000;
+                            if (installMode == CodePushInstallMode.IMMEDIATE
+                                    || durationInBackground >= mMinimumBackgroundDuration) {
+                                CodePushUtils.log("Loading bundle on resume");
+                                mRestartManager.restartApp(false);
+                            }
                         }
                     }
-                    return null;
-                }
-            };
 
-            asyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR).get();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
+                    @Override
+                    public void onHostPause() {
+                        // Save the current time so that when the app is later
+                        // resumed, we can detect how long it was in the background.
+                        lastPausedDate = new Date();
+
+                        if (installMode == CodePushInstallMode.ON_NEXT_SUSPEND && mSettingsManager.isPendingUpdate(null)) {
+                            appSuspendHandler.postDelayed(loadBundleRunnable, minimumBackgroundDuration * 1000);
+                        }
+                    }
+
+                    @Override
+                    public void onHostDestroy() {
+                    }
+                };
+
+                mReactApplicationContext.addLifecycleEventListener(mLifecycleEventListener);
+            }
         }
     }
 
@@ -890,9 +856,9 @@ public class CodePushCore {
             new CodePushAcquisitionManager(nativeConfiguration).reportStatusDeploy(statusReport);
         } else {
             if (statusReport.Status.equals(CodePushDeploymentStatus.Succeeded)) {
-                CodePushUtils.log("Reporting CodePushCore update success (" + statusReport.Label + ")");
+                CodePushUtils.log("Reporting CodePush update success (" + statusReport.Label + ")");
             } else {
-                CodePushUtils.log("Reporting CodePushCore update rollback (" + statusReport.Label + ")");
+                CodePushUtils.log("Reporting CodePush update rollback (" + statusReport.Label + ")");
             }
 
             CodePushConfiguration configuration = new CodePushConfiguration(
@@ -902,10 +868,10 @@ public class CodePushCore {
                     nativeConfiguration.ServerUrl,
                     nativeConfiguration.PackageHash
             );
-            new CodePushAcquisitionManager(configuration).reportStatusDeploy(statusReport);
+            if (new CodePushAcquisitionManager(configuration).reportStatusDeploy(statusReport)) {
+                recordStatusReported(statusReport);
+            }
         }
-
-        recordStatusReported(statusReport); //TODO: implement observer for TelemetryManager
     }
 
     private void recordStatusReported(CodePushStatusReport statusReport) {
@@ -951,4 +917,7 @@ public class CodePushCore {
         return null;
     }
 
+    public CodePushRestartManager getRestartManager() {
+        return mRestartManager;
+    }
 }
