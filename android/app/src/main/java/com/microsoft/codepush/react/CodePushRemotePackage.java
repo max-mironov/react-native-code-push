@@ -7,7 +7,10 @@ public class CodePushRemotePackage extends CodePushPackage {
     public final String DownloadUrl;
 
     @SerializedName("packageSize")
-    public final int PackageSize;
+    public final long PackageSize;
+
+    @SerializedName("updateAppVersion")
+    public final boolean UpdateAppVersion;
 
     public CodePushRemotePackage(
             final String appVersion,
@@ -17,11 +20,13 @@ public class CodePushRemotePackage extends CodePushPackage {
             final boolean isMandatory,
             final String label,
             final String packageHash,
-            final int packageSize,
-            final String downloadUrl
+            final long packageSize,
+            final String downloadUrl,
+            final boolean updateAppVersion
     ) {
         super(appVersion, deploymentKey, description, failedInstall, isMandatory, label, packageHash);
         DownloadUrl = downloadUrl;
         PackageSize = packageSize;
+        UpdateAppVersion = updateAppVersion;
     }
 }

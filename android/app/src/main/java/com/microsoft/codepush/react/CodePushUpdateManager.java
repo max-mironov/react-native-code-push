@@ -34,7 +34,7 @@ public class CodePushUpdateManager {
 
     private String getCodePushPath() {
         String codePushPath = CodePushUtils.appendPathComponent(getDocumentsDirectory(), CodePushConstants.CODE_PUSH_FOLDER_PREFIX);
-        if (CodePush.isUsingTestConfiguration()) {
+        if (CodePushCore.isUsingTestConfiguration()) {
             codePushPath = CodePushUtils.appendPathComponent(codePushPath, "TestPackages");
         }
 

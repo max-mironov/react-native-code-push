@@ -25,7 +25,7 @@ public class CodePushUpdateResponseUpdateInfo {
     public String Label;
 
     @SerializedName("packageSize")
-    public int PackageSize;
+    public long PackageSize;
 
     @SerializedName("updateAppVersion")
     public boolean UpdateAppVersion;

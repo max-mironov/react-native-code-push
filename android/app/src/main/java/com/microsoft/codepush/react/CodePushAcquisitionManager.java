@@ -59,6 +59,24 @@ public class CodePushAcquisitionManager {
                             Scanner s = new Scanner(inputStream).useDelimiter("\\A");
                             String result = s.hasNext() ? s.next() : "";
                             CodePushUpdateResponseUpdateInfo updateInfo = CodePushUtils.convertStringToObject(result, CodePushUpdateResponse.class).UpdateInfo;
+                            if (updateInfo == null) {
+                                throw new CodePushUnknownException(result);
+                            } else if (updateInfo.UpdateAppVersion) {
+                                return new CodePushRemotePackage(
+                                        updateInfo.AppVersion,
+                                        null,
+                                        null,
+                                        false,
+                                        false,
+                                        null,
+                                        null,
+                                        0,
+                                        null,
+                                        updateInfo.UpdateAppVersion);
+                            } else if (!updateInfo.IsAvailable) {
+                                return null;
+                            }
+
                             return new CodePushRemotePackage(
                                     updateInfo.AppVersion,
                                     mDeploymentKey,
@@ -68,7 +86,13 @@ public class CodePushAcquisitionManager {
                                     updateInfo.Label,
                                     updateInfo.PackageHash,
                                     updateInfo.PackageSize,
-                                    updateInfo.DownloadUrl);
+                                    updateInfo.DownloadUrl,
+                                    updateInfo.UpdateAppVersion);
+                        } else {
+                            InputStream inputStream = connection.getErrorStream();
+                            Scanner s = new Scanner(inputStream).useDelimiter("\\A");
+                            String result = s.hasNext() ? s.next() : "";
+                            CodePushUtils.log(result);
                         }
                     } catch (MalformedURLException e) {
                         e.printStackTrace();
@@ -141,7 +165,7 @@ public class CodePushAcquisitionManager {
                     os.close();
 
                     InputStream stream;
-                    if (connection.getResponseCode() == 200) {
+                    if (connection.getResponseCode() == HttpsURLConnection.HTTP_OK) {
                         stream = connection.getInputStream();
                     } else  {
                         stream = connection.getErrorStream();
@@ -187,7 +211,7 @@ public class CodePushAcquisitionManager {
                     os.close();
 
                     InputStream stream;
-                    if (connection.getResponseCode() == 200) {
+                    if (connection.getResponseCode() == HttpsURLConnection.HTTP_OK) {
                         stream = connection.getInputStream();
                     } else  {
                         stream = connection.getErrorStream();
