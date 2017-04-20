@@ -8,6 +8,10 @@ import log from "./logging";
 let NativeCodePush = require("react-native").NativeModules.CodePush;
 const PackageMixins = require("./package-mixins")(NativeCodePush);
 
+async function syncNative(syncOptions = null){
+    await NativeCodePush.sync(syncOptions);
+}
+
 async function checkForUpdateNative(deploymentKey = null) {
   const remotePackage = await NativeCodePush.checkForUpdate(deploymentKey);
   return remotePackage;
@@ -498,6 +502,7 @@ if (NativeCodePush) {
     restartApp: RestartManager.restartApp,
     setUpTestDependencies,
     sync,
+    syncNative,
     disallowRestart: RestartManager.disallow,
     allowRestart: RestartManager.allow,
     InstallMode: {

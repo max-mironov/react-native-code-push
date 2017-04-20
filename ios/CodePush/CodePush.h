@@ -46,7 +46,7 @@
 //warning: can still be unstable, use with care
 -(NSDictionary *)checkForUpdate:(NSString *)deploymentKey;
 //this method to be used by brownfield apps from native side
-+(void)sync:(NSDictionary *)syncOptions;
+-(void)sync:(NSDictionary *)syncOptions;
 
 /*
  * This method allows the version of the app's binary interface
