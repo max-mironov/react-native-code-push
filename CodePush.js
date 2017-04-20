@@ -8,6 +8,11 @@ import log from "./logging";
 let NativeCodePush = require("react-native").NativeModules.CodePush;
 const PackageMixins = require("./package-mixins")(NativeCodePush);
 
+async function checkForUpdateNative(deploymentKey = null) {
+  const remotePackage = await NativeCodePush.checkForUpdate(deploymentKey);
+  return remotePackage;
+}
+
 async function checkForUpdate(deploymentKey = null) {
   /*
    * Before we ask the server if an update exists, we
@@ -483,6 +488,7 @@ if (NativeCodePush) {
   Object.assign(CodePush, {
     AcquisitionSdk: Sdk,
     checkForUpdate,
+    checkForUpdateNative,
     getConfiguration,
     getCurrentPackage,
     getUpdateMetadata,

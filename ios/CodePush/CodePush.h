@@ -42,6 +42,12 @@
 
 + (NSString *)bundleAssetsPath;
 
+//this method to be used by brownfield apps from native side
+//warning: can still be unstable, use with care
+-(NSDictionary *)checkForUpdate:(NSString *)deploymentKey;
+//this method to be used by brownfield apps from native side
++(void)sync:(NSDictionary *)syncOptions;
+
 /*
  * This method allows the version of the app's binary interface
  * to be specified, which would otherwise default to the
@@ -73,6 +79,27 @@
 + (BOOL)isUsingTestConfiguration;
 + (void)setUsingTestConfiguration:(BOOL)shouldUseTestConfiguration;
 + (void)clearUpdates;
+
+@end
+
+@interface CodePushAquisitionSDKManager : NSObject
+
+@property (copy) NSString *appVersion;
+@property (copy) NSString *clientUniqueId;
+@property (copy) NSString *deploymentKey;
+@property (copy) NSString *ignoreAppVersion;
+@property (copy) NSString *serverURL;
+
+- (instancetype)initWithConfig:(NSDictionary *)config;
+
+- (NSDictionary *)queryUpdateWithCurrentPackage:(NSDictionary *)currentPackage;
+
+- (NSDictionary *)reportStatusDeploy:(NSDictionary *)package
+                          withStatus:(NSString *)status
+           previousLabelOrAppVersion:(NSString *)prevLabelOrAppVersion
+               previousDeploymentKey:(NSString *)prevDeploymentKey;
+
+- (NSDictionary *)reportStatusDownload:(NSDictionary *)downloadedPackage;
 
 @end
 
