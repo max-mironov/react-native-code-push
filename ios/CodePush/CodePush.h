@@ -94,12 +94,12 @@
 
 - (NSDictionary *)queryUpdateWithCurrentPackage:(NSDictionary *)currentPackage;
 
-- (NSDictionary *)reportStatusDeploy:(NSDictionary *)package
+- (void)reportStatusDeploy:(NSDictionary *)package
                           withStatus:(NSString *)status
            previousLabelOrAppVersion:(NSString *)prevLabelOrAppVersion
                previousDeploymentKey:(NSString *)prevDeploymentKey;
 
-- (NSDictionary *)reportStatusDownload:(NSDictionary *)downloadedPackage;
+- (void)reportStatusDownload:(NSDictionary *)downloadedPackage;
 
 @end
 
