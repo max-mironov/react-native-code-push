@@ -65,6 +65,7 @@ public class CodePushCore {
     private int mMinimumBackgroundDuration = 0;
 
     private boolean mSyncInProgress = false;
+    private CodePushInstallMode mCurrentInstallModeInProgress = CodePushInstallMode.ON_NEXT_RESTART;
 
     private static final String REACT_APPLICATION_CLASS_NAME = "com.facebook.react.ReactApplication";
     private static final String REACT_NATIVE_HOST_CLASS_NAME = "com.facebook.react.ReactNativeHost";
@@ -111,7 +112,13 @@ public class CodePushCore {
                 break;
             }
             case UPDATE_INSTALLED: {
-                CodePushUtils.log("Update is installed.");
+                if (mCurrentInstallModeInProgress == CodePushInstallMode.ON_NEXT_RESTART) {
+                    CodePushUtils.log("Update is installed and will be run on the next app restart.");
+                } else if (mCurrentInstallModeInProgress == CodePushInstallMode.ON_NEXT_RESUME) {
+                    CodePushUtils.log("Update is installed and will be run after the app has been in the background for at least " + mMinimumBackgroundDuration + " seconds.");
+                } else {
+                    CodePushUtils.log("Update is installed and will be run when the app next resumes.");
+                }
                 break;
             }
             case UNKNOWN_ERROR: {
@@ -414,10 +421,10 @@ public class CodePushCore {
 
         CodePushRemotePackage update = new CodePushAcquisitionManager(configuration).queryUpdateWithCurrentPackage(queryPackage);
 
-        if (update == null || (update.AppVersion == null || update.AppVersion.isEmpty())
-                || localPackage != null  && (update.PackageHash == localPackage.PackageHash)
-                && configuration.PackageHash == update.PackageHash) {
-            if (update != null && (update.AppVersion != null && !update.AppVersion.isEmpty())) {
+        if (update == null || update.UpdateAppVersion ||
+                localPackage != null && (update.PackageHash == localPackage.PackageHash) ||
+                (localPackage == null || localPackage.IsDebugOnly) && configuration.PackageHash == update.PackageHash) {
+            if (update != null && update.UpdateAppVersion) {
                 CodePushUtils.log("An update is available but it is not targeting the binary version of your app.");
             }
             return null;
@@ -442,6 +449,10 @@ public class CodePushCore {
     }
 
     public CodePushLocalPackage getUpdateMetadata(CodePushUpdateState updateState) {
+        if (updateState == null) {
+            updateState = CodePushUpdateState.RUNNING;
+        }
+
         CodePushLocalPackage currentPackage = mUpdateManagerDeserializer.getCurrentPackage();
 
         if (currentPackage == null) {
@@ -451,7 +462,7 @@ public class CodePushCore {
         Boolean currentUpdateIsPending = false;
         Boolean isDebugOnly = false;
 
-        if (currentPackage.PackageHash == null || currentPackage.PackageHash.isEmpty()) {
+        if (currentPackage.PackageHash != null && !currentPackage.PackageHash.isEmpty()) {
             String currentHash = currentPackage.PackageHash;
             currentUpdateIsPending = mSettingsManager.isPendingUpdate(currentHash);
         }
@@ -479,7 +490,6 @@ public class CodePushCore {
                 // This only matters in Debug builds. Since we do not clear "outdated" updates,
                 // we need to indicate to the JS side that somehow we have a current update on
                 // disk that is not actually running.
-
                 isDebugOnly = true;
             }
 
@@ -488,8 +498,8 @@ public class CodePushCore {
                     currentPackage.AppVersion,
                     currentPackage.DeploymentKey,
                     currentPackage.Description,
-                    currentPackage.FailedInstall,
-                    currentPackage.IsFirstRun,
+                    isFailedUpdate(currentPackage.PackageHash),
+                    isFirstRun(currentPackage.PackageHash),
                     currentPackage.IsMandatory,
                     currentUpdateIsPending,
                     currentPackage.Label,
@@ -500,13 +510,17 @@ public class CodePushCore {
         }
     }
 
-    public void sync() {
-        sync(new CodePushSyncOptions() {{
+    private CodePushSyncOptions getDefaultSyncOptions() {
+        return new CodePushSyncOptions() {{
             DeploymentKey = mDeploymentKey;
             InstallMode = CodePushInstallMode.ON_NEXT_RESTART;
             MandatoryInstallMode = CodePushInstallMode.IMMEDIATE;
             MinimumBackgroundDuration = 0;
-        }});
+        }};
+    }
+
+    public void sync() {
+        sync(getDefaultSyncOptions());
     }
 
     public void sync(CodePushSyncOptions syncOptions) {
@@ -514,6 +528,20 @@ public class CodePushCore {
             syncStatusChange(CodePushSyncStatus.SYNC_IN_PROGRESS);
             CodePushUtils.log("Sync already in progress.");
             return;
+        }
+
+        if (syncOptions == null) {
+            syncOptions = getDefaultSyncOptions();
+        } else if (syncOptions.DeploymentKey == null || syncOptions.DeploymentKey.isEmpty()) {
+            syncOptions.DeploymentKey = mDeploymentKey;
+        } else if (syncOptions.InstallMode == null) {
+            syncOptions.InstallMode = CodePushInstallMode.ON_NEXT_RESTART;
+        } else if (syncOptions.MandatoryInstallMode == null) {
+            syncOptions.MandatoryInstallMode = CodePushInstallMode.IMMEDIATE;
+        } else if (syncOptions.MinimumBackgroundDuration == null) {
+            syncOptions.MinimumBackgroundDuration = 0;
+        } else if (syncOptions.IgnoreFailedUpdates == null) {
+            syncOptions.IgnoreFailedUpdates = true;
         }
 
         CodePushConfiguration nativeConfiguration = getConfiguration();
@@ -552,6 +580,7 @@ public class CodePushCore {
             new CodePushAcquisitionManager(configuration).reportStatusDownload(localPackage);
 
             CodePushInstallMode resolvedInstallMode = localPackage.IsMandatory ? syncOptions.MandatoryInstallMode: syncOptions.InstallMode;
+            mCurrentInstallModeInProgress = resolvedInstallMode;
             syncStatusChange(CodePushSyncStatus.INSTALLING_UPDATE);
             installUpdate(localPackage, resolvedInstallMode, syncOptions.MinimumBackgroundDuration);
             syncStatusChange(CodePushSyncStatus.UPDATE_INSTALLED);

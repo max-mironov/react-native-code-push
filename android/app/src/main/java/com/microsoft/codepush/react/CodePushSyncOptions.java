@@ -7,7 +7,7 @@ public class CodePushSyncOptions {
 
     public CodePushInstallMode MandatoryInstallMode;
 
-    public int MinimumBackgroundDuration;
+    public Integer MinimumBackgroundDuration;
 
-    public boolean IgnoreFailedUpdates = true;
+    public Boolean IgnoreFailedUpdates = true;
 }
