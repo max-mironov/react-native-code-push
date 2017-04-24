@@ -46,7 +46,7 @@
 //warning: can still be unstable, use with care
 -(NSDictionary *)checkForUpdate:(NSString *)deploymentKey;
 //this method to be used by brownfield apps from native side
--(void)sync:(NSDictionary *)syncOptions;
+-(void)sync:(NSDictionary *)syncOptions withCallback:(void(^)())callback;
 
 /*
  * This method allows the version of the app's binary interface
@@ -222,4 +222,16 @@ typedef NS_ENUM(NSInteger, CodePushUpdateState) {
     CodePushUpdateStateRunning,
     CodePushUpdateStatePending,
     CodePushUpdateStateLatest
+};
+
+typedef NS_ENUM(NSInteger, CodePushSyncStatus) {
+    CodePushSyncStatusUP_TO_DATE, // The running app is up-to-date
+    CodePushSyncStatusUPDATE_INSTALLED, // The app had an optional/mandatory update that was successfully downloaded and is about to be installed.
+    CodePushSyncStatusUPDATE_IGNORED, // The app had an optional update and the end-user chose to ignore it
+    CodePushSyncStatusUNKNOWN_ERROR,
+    CodePushSyncStatusSYNC_IN_PROGRESS, // There is an ongoing "sync" operation in progress.
+    CodePushSyncStatusCHECKING_FOR_UPDATE,
+    CodePushSyncStatusAWAITING_USER_ACTION,
+    CodePushSyncStatusDOWNLOADING_PACKAGE,
+    CodePushSyncStatusINSTALLING_UPDATE
 };

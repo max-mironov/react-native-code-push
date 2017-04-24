@@ -17,6 +17,7 @@
 #import "CodePush.h"
 
 @interface CodePush () <RCTBridgeModule, RCTFrameUpdateObserver>
+
 @end
 
 @implementation CodePush {
@@ -32,6 +33,7 @@
     long long _latestReceivedConentLength;
     BOOL _didUpdateProgress;
     BOOL _syncInProgress;
+    CodePushSyncStatus _syncStatus;
 }
 
 RCT_EXPORT_MODULE()
@@ -384,17 +386,36 @@ static NSString *bundleResourceSubdirectory = nil;
     [CodePushTelemetryManager recordStatusReported:statusReport]; //aka recordStatusReported
 }
 
--(void) sync:(NSDictionary *)syncOptions
+-(void) syncStatusChanged:(CodePushSyncStatus)syncStatus
 {
-    //if (_syncInProgress){
-    //    //SYNC_IN_PROGRESS
-    //    CPLog(@"Sync already in progress.");
-    //    return;
-    //}
-    //_syncInProgress = true;
+    _syncStatus = syncStatus;
 
-    NSString *defaultSyncOptions = [[NSDictionary alloc] initWithObjectsAndKeys:
-                                    [NSNull null], @"deploymentKey",
+    //Notify obervers about sync status chaged event
+    NSDictionary *userInfo = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt: syncStatus] forKey:@"syncStatus"];
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:
+     @"CodePushSyncStatusChangedNotification" object:nil userInfo:userInfo];
+}
+
+-(void) syncCompleted: (void(^)())callback
+{
+    _syncInProgress = NO;
+    callback();
+}
+
+-(void) sync:(NSDictionary *)syncOptions withCallback:(void(^)())callback
+{
+    if (_syncInProgress){
+        CPLog(@"Sync already in progress.");
+        [self syncStatusChanged:CodePushSyncStatusSYNC_IN_PROGRESS];
+        callback();
+        return;
+    }
+
+    _syncInProgress = YES;
+
+    NSMutableDictionary *defaultSyncOptions = [[NSMutableDictionary alloc] initWithObjectsAndKeys:
+                                    [NSNull null], DeploymentKeyConfigKey,
                                     @(YES), @"ignoreFailedUpdates",
                                     [NSNumber numberWithInt: CodePushInstallModeOnNextRestart],@"installMode",
                                     [NSNumber numberWithInt: CodePushInstallModeImmediate], @"mandatoryInstallMode",
@@ -402,13 +423,18 @@ static NSString *bundleResourceSubdirectory = nil;
                                     [NSNull null],@"updateDialog",
                                     nil];
 
+    [defaultSyncOptions addEntriesFromDictionary:syncOptions]; //merge with provided options
+
     [CodePush removePendingUpdate]; // aka NotifyAppReady
     NSDictionary *newStatusReport = [self getNewStatusReport];
     if (newStatusReport){
         [[self class] reportStatus:newStatusReport];
+
     }
 
     NSString *deploymentKey = [syncOptions objectForKey:DeploymentKeyConfigKey];
+
+    _syncStatus = CodePushSyncStatusCHECKING_FOR_UPDATE;
     NSDictionary *remotePackage = [self checkForUpdate:deploymentKey];
 
     BOOL failedInstall = (remotePackage && [[remotePackage objectForKey:FailedInstallKey]boolValue]);
@@ -421,15 +447,18 @@ static NSString *bundleResourceSubdirectory = nil;
 
         NSDictionary *currentPackage = [[self class] getCurrentPackage];
         if (currentPackage && [[currentPackage objectForKey:PackageIsPendingKey]boolValue]){
-            //UPDATE_INSTALLED
+            [self syncStatusChanged:CodePushSyncStatusUPDATE_INSTALLED];
+            [self syncCompleted:callback];
             return;
         } else {
-            //UP_TO_DATE
+            [self syncStatusChanged:CodePushSyncStatusUP_TO_DATE];
+            [self syncCompleted:callback];
             return;
         }
     }
 
     //download remote package
+    [self syncStatusChanged:CodePushSyncStatusDOWNLOADING_PACKAGE];
 
     //for now only copy code from downloadPackage method in order not to break anything, later remove code duplication
     NSDictionary *mutableUpdatePackage = [remotePackage mutableCopy];
@@ -439,16 +468,10 @@ static NSString *bundleResourceSubdirectory = nil;
                                 forKey:BinaryBundleDateKey];
     }
 
-    BOOL notifyProgress = NO;
-    if (notifyProgress) {
-        // Set up and unpause the frame observer so that it can emit
-        // progress events every frame if the progress is updated.
-        _didUpdateProgress = NO;
-        self.paused = NO;
-    }
-
     if (![mutableUpdatePackage objectForKey:@"downloadUrl"]){
         CPLog(@"Cannot download an update without a download url");
+        [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
+        [self syncCompleted:callback];
         return;
     }
 
@@ -458,18 +481,6 @@ static NSString *bundleResourceSubdirectory = nil;
      operationQueue:_methodQueue
      // The download is progressing forward
      progressCallback:^(long long expectedContentLength, long long receivedContentLength) {
-         // Update the download progress so that the frame observer can notify the JS side
-         _latestExpectedContentLength = expectedContentLength;
-         _latestReceivedConentLength = receivedContentLength;
-         _didUpdateProgress = YES;
-
-         // If the download is completed, stop observing frame
-         // updates and synchronously send the last event.
-         if (expectedContentLength == receivedContentLength) {
-             _didUpdateProgress = NO;
-             self.paused = YES;
-             [self dispatchDownloadProgressEvent];
-         }
      }
      // The download completed
      doneCallback:^{
@@ -478,6 +489,8 @@ static NSString *bundleResourceSubdirectory = nil;
 
          if (err) {
              CPLog([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
+             [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
+             [self syncCompleted:callback];
              return;
          }
 
@@ -487,9 +500,12 @@ static NSString *bundleResourceSubdirectory = nil;
          [aquisitionSdk reportStatusDownload:remotePackage];
          //end report logic
 
+
          // Determine the correct install mode based on whether the update is mandatory or not.
          CodePushInstallMode resolvedInstallMode = CodePushInstallModeOnNextRestart; //TODO: ok, for the 1st iteration only this mode
          int resolvedMinimumBackgroundDuration = 0; //for now leave as zero
+
+         [self syncStatusChanged:CodePushSyncStatusINSTALLING_UPDATE];
 
          //updatePackage install logic
          NSError *error;
@@ -499,6 +515,8 @@ static NSString *bundleResourceSubdirectory = nil;
 
          if (error) {
              CPLog([NSString stringWithFormat: @"%lu", (long)error.code], error.localizedDescription, error);
+             [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
+             [self syncCompleted:callback];
              return;
          } else {
              [self savePendingUpdate:updatePackage[PackageHashKey]
@@ -526,6 +544,8 @@ static NSString *bundleResourceSubdirectory = nil;
                      _hasResumeListener = YES;
                  }
              }
+             [self syncStatusChanged:CodePushSyncStatusUPDATE_INSTALLED];
+             [self syncCompleted:callback];
          }
      }
      // The download failed
@@ -534,11 +554,9 @@ static NSString *bundleResourceSubdirectory = nil;
              [self saveFailedUpdate:mutableUpdatePackage];
          }
 
-         // Stop observing frame updates if the download fails.
-         _didUpdateProgress = NO;
-         self.paused = YES;
-
          CPLog([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
+         [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
+         [self syncCompleted:callback];
      }];
 
     // end download logic
@@ -1196,8 +1214,11 @@ RCT_EXPORT_METHOD(sync:(NSDictionary *)syncOptions
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 {
-    [self sync:syncOptions];
-    resolve(@(YES));
+    [self sync:syncOptions withCallback:^{
+        //for test
+        CodePushSyncStatus syncStatus = _syncStatus;
+        resolve(@(YES));
+    }];
 }
 
 RCT_EXPORT_METHOD(checkForUpdate:(NSString *)deploymentKey
