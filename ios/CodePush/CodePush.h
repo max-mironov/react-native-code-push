@@ -80,6 +80,13 @@
 + (void)setUsingTestConfiguration:(BOOL)shouldUseTestConfiguration;
 + (void)clearUpdates;
 
+-(BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending;
+
+//restart manager properties
+@property (nonatomic) BOOL restartAllowed;
+@property (nonatomic) BOOL restartInProgress;
+@property (nonatomic) NSMutableArray *restartQueue;
+
 @end
 
 @interface CodePushAquisitionSDKManager : NSObject

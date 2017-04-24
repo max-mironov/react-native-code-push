@@ -15,6 +15,7 @@
 #endif
 
 #import "CodePush.h"
+#import "CodePush+RestartManager.h"
 
 @interface CodePush () <RCTBridgeModule, RCTFrameUpdateObserver>
 
@@ -35,6 +36,8 @@
     BOOL _syncInProgress;
     CodePushSyncStatus _syncStatus;
 }
+
+@synthesize restartAllowed, restartInProgress, restartQueue;
 
 RCT_EXPORT_MODULE()
 
@@ -386,6 +389,18 @@ static NSString *bundleResourceSubdirectory = nil;
     [CodePushTelemetryManager recordStatusReported:statusReport]; //aka recordStatusReported
 }
 
+-(BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending
+{
+    // If this is an unconditional restart request, or there
+    // is current pending update, then reload the app.
+    if (!onlyIfUpdateIsPending || [[self class] isPendingUpdate:nil]) {
+        [self loadBundle];
+        return @(YES);
+    }
+
+    return @(NO);
+}
+
 -(void) syncStatusChanged:(CodePushSyncStatus)syncStatus
 {
     _syncStatus = syncStatus;
@@ -414,7 +429,7 @@ static NSString *bundleResourceSubdirectory = nil;
 
     _syncInProgress = YES;
 
-    NSMutableDictionary *defaultSyncOptions = [[NSMutableDictionary alloc] initWithObjectsAndKeys:
+    NSMutableDictionary *mergedSyncOptions = [[NSMutableDictionary alloc] initWithObjectsAndKeys:
                                     [NSNull null], DeploymentKeyConfigKey,
                                     @(YES), @"ignoreFailedUpdates",
                                     [NSNumber numberWithInt: CodePushInstallModeOnNextRestart],@"installMode",
@@ -423,7 +438,7 @@ static NSString *bundleResourceSubdirectory = nil;
                                     [NSNull null],@"updateDialog",
                                     nil];
 
-    [defaultSyncOptions addEntriesFromDictionary:syncOptions]; //merge with provided options
+    [mergedSyncOptions addEntriesFromDictionary:syncOptions]; //merge with provided options
 
     [CodePush removePendingUpdate]; // aka NotifyAppReady
     NSDictionary *newStatusReport = [self getNewStatusReport];
@@ -432,9 +447,12 @@ static NSString *bundleResourceSubdirectory = nil;
 
     }
 
-    NSString *deploymentKey = [syncOptions objectForKey:DeploymentKeyConfigKey];
+    NSString *deploymentKey = [mergedSyncOptions objectForKey:DeploymentKeyConfigKey];
+    if ([deploymentKey isEqual:[NSNull null]]){
+        deploymentKey = nil;
+    }
 
-    _syncStatus = CodePushSyncStatusCHECKING_FOR_UPDATE;
+    [self syncStatusChanged:CodePushSyncStatusCHECKING_FOR_UPDATE];
     NSDictionary *remotePackage = [self checkForUpdate:deploymentKey];
 
     BOOL failedInstall = (remotePackage && [[remotePackage objectForKey:FailedInstallKey]boolValue]);
@@ -501,9 +519,14 @@ static NSString *bundleResourceSubdirectory = nil;
          //end report logic
 
 
+         CodePushInstallMode resolvedInstallMode = [[mergedSyncOptions objectForKey:@"installMode"] intValue];
          // Determine the correct install mode based on whether the update is mandatory or not.
-         CodePushInstallMode resolvedInstallMode = CodePushInstallModeOnNextRestart; //TODO: ok, for the 1st iteration only this mode
-         int resolvedMinimumBackgroundDuration = 0; //for now leave as zero
+         BOOL isMandatory = [[updatePackage objectForKey:@"isMandatory"] boolValue];
+         if (isMandatory){
+             resolvedInstallMode = [[mergedSyncOptions objectForKey:@"mandatoryInstallMode"] intValue];
+         }
+
+         int resolvedMinimumBackgroundDuration = [[mergedSyncOptions objectForKey:@"minimumBackgroundDuration"] intValue];
 
          [self syncStatusChanged:CodePushSyncStatusINSTALLING_UPDATE];
 
@@ -544,6 +567,13 @@ static NSString *bundleResourceSubdirectory = nil;
                      _hasResumeListener = YES;
                  }
              }
+
+             if (installMode == CodePushInstallModeImmediate){
+                 [self restartApp:NO];
+             } else {
+                 [self clearPendingRestart];
+             }
+
              [self syncStatusChanged:CodePushSyncStatusUPDATE_INSTALLED];
              [self syncCompleted:callback];
          }
@@ -774,6 +804,7 @@ static NSString *bundleResourceSubdirectory = nil;
 
     if (self) {
         [self initializeUpdateAfterRestart];
+        restartAllowed = YES;
     }
 
     return self;
@@ -1199,16 +1230,36 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
                      resolve:(RCTPromiseResolveBlock)resolve
                     rejecter:(RCTPromiseRejectBlock)reject)
 {
-    // If this is an unconditional restart request, or there
-    // is current pending update, then reload the app.
-    if (!onlyIfUpdateIsPending || [[self class] isPendingUpdate:nil]) {
-        [self loadBundle];
+    BOOL result = [self restartApplication:onlyIfUpdateIsPending];
+    if (result){
         resolve(@(YES));
         return;
     }
-
     resolve(@(NO));
 }
+
+RCT_EXPORT_METHOD(clearPendingRestart:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self clearPendingRestart];
+    resolve(@(YES));
+}
+
+RCT_EXPORT_METHOD(allowRestart:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self allowRestart];
+    resolve(@(YES));
+}
+
+RCT_EXPORT_METHOD(disallowRestart:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self disallowRestart];
+    resolve(@(YES));
+}
+
+
 
 RCT_EXPORT_METHOD(sync:(NSDictionary *)syncOptions
                   resolve:(RCTPromiseResolveBlock)resolve
