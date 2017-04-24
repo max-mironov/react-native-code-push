@@ -55,6 +55,16 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule implements 
         constants.put("codePushUpdateStatePending", CodePushUpdateState.PENDING.getValue());
         constants.put("codePushUpdateStateLatest", CodePushUpdateState.LATEST.getValue());
 
+        constants.put("codePushSyncStatusUpToDate", CodePushSyncStatus.UP_TO_DATE.getValue());
+        constants.put("codePushSyncStatusUpdateInstalled", CodePushSyncStatus.UPDATE_INSTALLED.getValue());
+        constants.put("codePushSyncStatusUpdateIgnored", CodePushSyncStatus.UPDATE_IGNORED.getValue());
+        constants.put("codePushSyncStatusUnknownError", CodePushSyncStatus.UNKNOWN_ERROR.getValue());
+        constants.put("codePushSyncStatusSyncInProgress", CodePushSyncStatus.SYNC_IN_PROGRESS.getValue());
+        constants.put("codePushSyncStatusCheckingForUpdate", CodePushSyncStatus.CHECKING_FOR_UPDATE.getValue());
+        constants.put("codePushSyncStatusAwaitingUserAction", CodePushSyncStatus.AWAITING_USER_ACTION.getValue());
+        constants.put("codePushSyncStatusDownloadingPackage", CodePushSyncStatus.DOWNLOADING_PACKAGE.getValue());
+        constants.put("codePushSyncStatusInstallingUpdate", CodePushSyncStatus.INSTALLING_UPDATE.getValue());
+
         return constants;
     }
 

@@ -502,15 +502,15 @@ if (NativeCodePush) {
       // so that user context isn't lost unless the app suspension is long enough to not matter
     },
     SyncStatus: {
-      UP_TO_DATE: 0, // The running app is up-to-date
-      UPDATE_INSTALLED: 1, // The app had an optional/mandatory update that was successfully downloaded and is about to be installed.
-      UPDATE_IGNORED: 2, // The app had an optional update and the end-user chose to ignore it
-      UNKNOWN_ERROR: 3,
-      SYNC_IN_PROGRESS: 4, // There is an ongoing "sync" operation in progress.
-      CHECKING_FOR_UPDATE: 5,
-      AWAITING_USER_ACTION: 6,
-      DOWNLOADING_PACKAGE: 7,
-      INSTALLING_UPDATE: 8
+      UP_TO_DATE: NativeCodePush.codePushSyncStatusUpToDate, // The running app is up-to-date
+      UPDATE_INSTALLED: NativeCodePush.codePushSyncStatusUpdateInstalled, // The app had an optional/mandatory update that was successfully downloaded and is about to be installed.
+      UPDATE_IGNORED: NativeCodePush.codePushSyncStatusUpdateIgnored, // The app had an optional update and the end-user chose to ignore it
+      UNKNOWN_ERROR: NativeCodePush.codePushSyncStatusUnknownError,
+      SYNC_IN_PROGRESS: NativeCodePush.codePushSyncStatusSyncInProgress, // There is an ongoing "sync" operation in progress.
+      CHECKING_FOR_UPDATE: NativeCodePush.codePushSyncStatusCheckingForUpdate,
+      AWAITING_USER_ACTION: NativeCodePush.codePushSyncStatusAwaitingUserAction,
+      DOWNLOADING_PACKAGE: NativeCodePush.codePushSyncStatusDownloadingPackage,
+      INSTALLING_UPDATE: NativeCodePush.codePushSyncStatusInstallingUpdate
     },
     CheckFrequency: {
       ON_APP_START: 0,
