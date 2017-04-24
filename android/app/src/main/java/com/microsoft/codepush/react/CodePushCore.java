@@ -369,7 +369,7 @@ public class CodePushCore {
 
     public List<NativeModule> createNativeModules(ReactApplicationContext reactApplicationContext) {
         mReactApplicationContext = reactApplicationContext;
-        CodePushNativeModule codePushModule = new CodePushNativeModule(mReactApplicationContext, this, mUpdateManager, mTelemetryManager, mSettingsManager);
+        CodePushNativeModule codePushModule = new CodePushNativeModule(mReactApplicationContext, this);
         CodePushDialog dialogModule = new CodePushDialog(mReactApplicationContext);
 
         List<NativeModule> nativeModules = new ArrayList<>();
@@ -409,7 +409,7 @@ public class CodePushCore {
         if (localPackage != null) {
             queryPackage = localPackage;
         } else {
-            queryPackage = new CodePushLocalPackage(configuration.AppVersion, "", "", false, false, false, false, "" , "");
+            queryPackage = new CodePushLocalPackage(configuration.AppVersion, "", "", false, false, false, false, "" , "", false);
         }
 
         CodePushRemotePackage update = new CodePushAcquisitionManager(configuration).queryUpdateWithCurrentPackage(queryPackage);
@@ -449,6 +449,7 @@ public class CodePushCore {
         }
 
         Boolean currentUpdateIsPending = false;
+        Boolean isDebugOnly = false;
 
         if (currentPackage.PackageHash == null || currentPackage.PackageHash.isEmpty()) {
             String currentHash = currentPackage.PackageHash;
@@ -479,7 +480,7 @@ public class CodePushCore {
                 // we need to indicate to the JS side that somehow we have a current update on
                 // disk that is not actually running.
 
-                //CodePushUtils.setJSONValueForKey(currentPackage, "_isDebugOnly", true);
+                isDebugOnly = true;
             }
 
             // Enable differentiating pending vs. non-pending updates
@@ -492,7 +493,8 @@ public class CodePushCore {
                     currentPackage.IsMandatory,
                     currentUpdateIsPending,
                     currentPackage.Label,
-                    currentPackage.PackageHash
+                    currentPackage.PackageHash,
+                    isDebugOnly
             );
             return currentPackage;
         }
@@ -562,7 +564,8 @@ public class CodePushCore {
         }
     }
 
-    private CodePushLocalPackage downloadUpdate(final CodePushRemotePackage updatePackage) {
+    public CodePushLocalPackage downloadUpdate(final CodePushRemotePackage updatePackage) {
+        CodePushLocalPackage newPackage;
         try {
             JSONObject mutableUpdatePackage = CodePushUtils.convertObjectToJsonObject(updatePackage);
             CodePushUtils.setJSONValueForKey(mutableUpdatePackage, CodePushConstants.BINARY_MODIFIED_TIME_KEY, "" + getBinaryResourcesModifiedTime());
@@ -602,19 +605,19 @@ public class CodePushCore {
                 }
             });
 
-            CodePushLocalPackage newPackage = mUpdateManagerDeserializer.getPackage(updatePackage.PackageHash);
+            newPackage = mUpdateManagerDeserializer.getPackage(updatePackage.PackageHash);
             return newPackage;
         } catch (IOException e) {
             e.printStackTrace();
+            return new CodePushLocalPackage(e);
         } catch (CodePushInvalidUpdateException e) {
             e.printStackTrace();
             mSettingsManager.saveFailedUpdate(CodePushUtils.convertObjectToJsonObject(updatePackage));
+            return new CodePushLocalPackage(e);
         }
-
-        return null;
     }
 
-    private void installUpdate(final CodePushLocalPackage updatePackage, final CodePushInstallMode installMode, final int minimumBackgroundDuration) {
+    public void installUpdate(final CodePushLocalPackage updatePackage, final CodePushInstallMode installMode, final int minimumBackgroundDuration) {
         mUpdateManager.installPackage(CodePushUtils.convertObjectToJsonObject(updatePackage), mSettingsManager.isPendingUpdate(null));
 
         String pendingHash = updatePackage.PackageHash;
@@ -694,6 +697,10 @@ public class CodePushCore {
                 && packageHash != null
                 && packageHash.length() > 0
                 && packageHash.equals(mUpdateManager.getCurrentPackageHash());
+    }
+
+    public void removePendingUpdate() {
+        mSettingsManager.removePendingUpdate();
     }
 
     public void notifyApplicationReady() {
@@ -882,11 +889,11 @@ public class CodePushCore {
         }
     }
 
-    private void recordStatusReported(CodePushStatusReport statusReport) {
+    public void recordStatusReported(CodePushStatusReport statusReport) {
         mTelemetryManager.recordStatusReported(statusReport);
     }
 
-    private CodePushStatusReport getNewStatusReport() {
+    public CodePushStatusReport getNewStatusReport() {
         if (needToReportRollback()) {
             setNeedToReportRollback(false);
             JSONArray failedUpdates = mSettingsManager.getFailedUpdates();
@@ -927,5 +934,19 @@ public class CodePushCore {
 
     public CodePushRestartManager getRestartManager() {
         return mRestartManager;
+    }
+
+    public void downloadAndReplaceCurrentBundle(String remoteBundleUrl) {
+        if (isUsingTestConfiguration()) {
+            try {
+                mUpdateManager.downloadAndReplaceCurrentBundle(remoteBundleUrl, getAssetsBundleFileName());
+            } catch (IOException e) {
+                throw new CodePushUnknownException("Unable to replace current bundle", e);
+            }
+        }
+    }
+
+    public void saveStatusReportForRetry(CodePushStatusReport statusReport) {
+        mTelemetryManager.saveStatusReportForRetry(statusReport);
     }
 }

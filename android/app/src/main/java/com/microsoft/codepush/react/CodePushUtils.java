@@ -289,4 +289,8 @@ public class CodePushUtils {
         }
         return sb.toString();
     }
+
+    public static WritableMap convertObjectToWritableMap(Object object) {
+        return convertJsonObjectToWritable(convertObjectToJsonObject(object));
+    }
 }

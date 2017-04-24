@@ -133,6 +133,11 @@ public class CodePushTelemetryManager {
         }
     }
 
+    public void saveStatusReportForRetry(CodePushStatusReport statusReport) {
+        JSONObject statusReportJSON = CodePushUtils.convertObjectToJsonObject(statusReport);
+        mSettings.edit().putString(RETRY_DEPLOYMENT_REPORT_KEY, statusReportJSON.toString()).commit();
+    }
+
     public void saveStatusReportForRetry(ReadableMap statusReport) {
         JSONObject statusReportJSON = CodePushUtils.convertReadableToJsonObject(statusReport);
         mSettings.edit().putString(RETRY_DEPLOYMENT_REPORT_KEY, statusReportJSON.toString()).commit();
