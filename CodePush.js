@@ -2,7 +2,6 @@ import { AcquisitionManager as Sdk } from "code-push/script/acquisition-sdk";
 import { Alert } from "./AlertAdapter";
 import requestFetchAdapter from "./request-fetch-adapter";
 import { AppState, Platform } from "react-native";
-import RestartManager from "./RestartManager";
 import log from "./logging";
 
 let NativeCodePush = require("react-native").NativeModules.CodePush;
@@ -489,11 +488,11 @@ if (NativeCodePush) {
     log,
     notifyAppReady: notifyApplicationReady,
     notifyApplicationReady,
-    restartApp: RestartManager.restartApp,
+    restartApp: NativeCodePush.restartApp,
     setUpTestDependencies,
     sync,
-    disallowRestart: RestartManager.disallow,
-    allowRestart: RestartManager.allow,
+    disallowRestart: NativeCodePush.disallowRestart,
+    allowRestart: NativeCodePush.allowRestart,
     InstallMode: {
       IMMEDIATE: NativeCodePush.codePushInstallModeImmediate, // Restart the app immediately
       ON_NEXT_RESTART: NativeCodePush.codePushInstallModeOnNextRestart, // Don't artificially restart the app. Allow the update to be "picked up" on the next app restart

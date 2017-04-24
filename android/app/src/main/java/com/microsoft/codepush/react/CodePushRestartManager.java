@@ -1,6 +1,6 @@
 package com.microsoft.codepush.react;
 
-import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 public class CodePushRestartManager {
@@ -8,7 +8,7 @@ public class CodePushRestartManager {
 
     private boolean mRestartInProgress = false;
 
-    private List<Boolean> mRestartQueue = new ArrayList<>();
+    private List<Boolean> mRestartQueue = new LinkedList<>();
 
     private CodePushCore mCodePushCore;
 
@@ -22,7 +22,9 @@ public class CodePushRestartManager {
 
         if (mRestartQueue.size() > 0) {
             CodePushUtils.log("Executing pending restart");
-            //restartApp
+            boolean onlyIfUpdateIsPending = mRestartQueue.get(0);
+            mRestartQueue.remove(0);
+            restartApp(onlyIfUpdateIsPending);
         }
     }
 
@@ -35,7 +37,7 @@ public class CodePushRestartManager {
         mRestartQueue.clear();
     }
 
-    public void restartApp(boolean onlyIfUpdateIsPending) {
+    public boolean restartApp(boolean onlyIfUpdateIsPending) {
         if (mRestartInProgress) {
             CodePushUtils.log("Restart request queued until the current restart is completed");
             mRestartQueue.add(onlyIfUpdateIsPending);
@@ -46,7 +48,7 @@ public class CodePushRestartManager {
             mRestartInProgress = true;
             if (mCodePushCore.restartApp(onlyIfUpdateIsPending)) {
                 CodePushUtils.log("Restarting app");
-                return;
+                return true;
             }
 
             mRestartInProgress = false;
@@ -54,5 +56,6 @@ public class CodePushRestartManager {
                 restartApp(mRestartQueue.remove(0));
             }
         }
+        return false;
     }
  }

@@ -3,7 +3,6 @@ package com.microsoft.codepush.react;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.LifecycleEventListener;
@@ -28,7 +27,6 @@ import java.util.Map;
 
 public class CodePushNativeModule extends ReactContextBaseJavaModule {
     private String mBinaryContentsHash = null;
-    private String mClientUniqueId = null;
     private LifecycleEventListener mLifecycleEventListener = null;
     private int mMinimumBackgroundDuration = 0;
 
@@ -47,7 +45,6 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
 
         // Initialize module state while we have a reference to the current context.
         mBinaryContentsHash = CodePushUpdateUtils.getHashForBinaryContents(reactContext, mCodePushCore.isDebugMode());
-        mClientUniqueId = Settings.Secure.getString(reactContext.getContentResolver(), Settings.Secure.ANDROID_ID);
     }
 
     @Override
@@ -179,10 +176,11 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void getConfiguration(Promise promise) {
         WritableMap configMap =  Arguments.createMap();
-        configMap.putString("appVersion", mCodePushCore.getAppVersion());
-        configMap.putString("clientUniqueId", mClientUniqueId);
-        configMap.putString("deploymentKey", mCodePushCore.getDeploymentKey());
-        configMap.putString("serverUrl", mCodePushCore.getServerUrl());
+        CodePushConfiguration nativeConfiguration = mCodePushCore.getConfiguration();
+        configMap.putString("appVersion", nativeConfiguration.AppVersion);
+        configMap.putString("clientUniqueId", nativeConfiguration.ClientUniqueId);
+        configMap.putString("deploymentKey", nativeConfiguration.DeploymentKey);
+        configMap.putString("serverUrl", nativeConfiguration.ServerUrl);
 
         // The binary hash may be null in debug builds
         if (mBinaryContentsHash != null) {
@@ -408,7 +406,19 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void restartApp(boolean onlyIfUpdateIsPending, Promise promise) {
-        promise.resolve(mCodePushCore.restartApp(onlyIfUpdateIsPending));
+        promise.resolve(mCodePushCore.getRestartManager().restartApp(onlyIfUpdateIsPending));
+    }
+
+    @ReactMethod
+    public void disallowRestart(Promise promise) {
+        mCodePushCore.getRestartManager().disallow();
+        promise.resolve("");
+    }
+
+    @ReactMethod
+    public void allowRestart(Promise promise) {
+        mCodePushCore.getRestartManager().allow();
+        promise.resolve("");
     }
 
     @ReactMethod

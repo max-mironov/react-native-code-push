@@ -141,6 +141,10 @@ public class CodePushUtils {
         return jsonArr;
     }
 
+    public static <T> T convertReadableToObject(ReadableMap map,  Class<T> classOfT) {
+        return convertJsonObjectToObject(convertReadableToJsonObject(map), classOfT);
+    }
+
     public static JSONObject convertReadableToJsonObject(ReadableMap map) {
         JSONObject jsonObj = new JSONObject();
         ReadableMapKeySetIterator it = map.keySetIterator();

@@ -13,7 +13,6 @@ import java.util.List;
 
 public class CodePush implements ReactPackage {
     private CodePushCore mCodePushCore;
-    private CodePushRestartManager mRestartManager;
 
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactApplicationContext) {
@@ -36,12 +35,10 @@ public class CodePush implements ReactPackage {
 
     public CodePush(String deploymentKey, Context context, boolean isDebugMode) {
         mCodePushCore = new CodePushCore(deploymentKey, context, isDebugMode);
-        mRestartManager = mCodePushCore.getRestartManager();
     }
 
     public CodePush(String deploymentKey, Context context, boolean isDebugMode, String serverUrl) {
         mCodePushCore = new CodePushCore(deploymentKey, context, isDebugMode, serverUrl);
-        mRestartManager = mCodePushCore.getRestartManager();
     }
 
     public static String getJSBundleFile() {
@@ -93,19 +90,19 @@ public class CodePush implements ReactPackage {
     }
 
     public void restartApp() {
-        mRestartManager.restartApp(false);
+        mCodePushCore.getRestartManager().restartApp(false);
     }
 
     public void restartApp(boolean onlyIfUpdateIsPending) {
-        mRestartManager.restartApp(onlyIfUpdateIsPending);
+        mCodePushCore.getRestartManager().restartApp(onlyIfUpdateIsPending);
     }
 
     public void disallowRestart() {
-        mRestartManager.disallow();
+        mCodePushCore.getRestartManager().disallow();
     }
 
     public void allowRestart() {
-        mRestartManager.allow();
+        mCodePushCore.getRestartManager().allow();
     }
 
     public void sync() {
