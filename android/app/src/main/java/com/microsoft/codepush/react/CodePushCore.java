@@ -79,7 +79,11 @@ public class CodePushCore {
 
     private void syncStatusChange(CodePushSyncStatus syncStatus) {
         for (CodePushSyncStatusListener syncStatusListener: mSyncStatusListeners) {
-            syncStatusListener.syncStatusChanged(syncStatus);
+            try {
+                syncStatusListener.syncStatusChanged(syncStatus);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
         switch (syncStatus){
             case CHECKING_FOR_UPDATE: {
@@ -119,7 +123,11 @@ public class CodePushCore {
 
     private void downloadProgressChange(long receivedBytes, long totalBytes) {
         for (CodePushDownloadProgressListener downloadProgressListener: mDownloadProgressListeners) {
-            downloadProgressListener.downloadProgressChanged(receivedBytes, totalBytes);
+            try {
+                downloadProgressListener.downloadProgressChanged(receivedBytes, totalBytes);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
