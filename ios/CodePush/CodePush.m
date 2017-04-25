@@ -324,48 +324,17 @@ static NSString *bundleResourceSubdirectory = nil;
 
          [self syncStatusChanged:CodePushSyncStatusINSTALLING_UPDATE];
 
-         //updatePackage install logic
-         NSError *error;
-         [CodePushPackage installPackage:updatePackage
-                     removePendingUpdate:[[self class] isPendingUpdate:nil]
-                                   error:&error];
+         [self installUpdate:updatePackage
+                 installMode:resolvedInstallMode
+   minimumBackgroundDuration:resolvedMinimumBackgroundDuration
+                       error:&err];
 
-         if (error) {
-             CPLog([NSString stringWithFormat: @"%lu", (long)error.code], error.localizedDescription, error);
+         if (err) {
+             CPLog([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
              [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
              [self syncCompleted:callback];
              return;
          } else {
-             [self savePendingUpdate:updatePackage[PackageHashKey]
-                           isLoading:NO];
-
-             if (resolvedInstallMode == CodePushInstallModeOnNextResume || resolvedInstallMode == CodePushInstallModeOnNextSuspend) {
-                  _minimumBackgroundDuration = resolvedMinimumBackgroundDuration;
-
-                 if (!_hasResumeListener) {
-                     // Ensure we do not add the listener twice.
-                     // Register for app resume notifications so that we
-                     // can check for pending updates which support "restart on resume"
-                     [[NSNotificationCenter defaultCenter] addObserver:self
-                                                              selector:@selector(applicationWillEnterForeground)
-                                                                  name:UIApplicationWillEnterForegroundNotification
-                                                                object:RCTSharedApplication()];
-
-                     [[NSNotificationCenter defaultCenter] addObserver:self
-                                                              selector:@selector(applicationWillResignActive)
-                                                                  name:UIApplicationWillResignActiveNotification
-                                                                object:RCTSharedApplication()];
-
-                     _hasResumeListener = YES;
-                 }
-             }
-
-             if (resolvedInstallMode == CodePushInstallModeImmediate){
-                 [self restartApp:NO];
-             } else {
-                 [self clearPendingRestart];
-             }
-
              [self syncStatusChanged:CodePushSyncStatusUPDATE_INSTALLED];
              [self syncCompleted:callback];
          }
@@ -740,11 +709,8 @@ static NSString *bundleResourceSubdirectory = nil;
 + (NSDictionary *)getUpdateMetadataFor:(CodePushUpdateState)updateState
             currentPackageGettingError:(NSError **)error
 {
-    NSError *__autoreleasing internalError;
-
-    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:&internalError] mutableCopy];
-    if (internalError){
-        error = &internalError;
+    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:error] mutableCopy];
+    if (error){
         return nil;
     }
 
@@ -983,6 +949,54 @@ static NSString *bundleResourceSubdirectory = nil;
 
 - (NSArray<NSString *> *)supportedEvents {
     return @[DownloadProgressEvent];
+}
+
+- (BOOL)installUpdate:(NSDictionary*)updatePackage
+          installMode:(CodePushInstallMode)intallMode
+          minimumBackgroundDuration:(int)minimumBackgroundDuration
+                error:(NSError **)error
+{
+    [CodePushPackage installPackage:updatePackage
+                removePendingUpdate:[[self class] isPendingUpdate:nil]
+                              error:error];
+
+    if (error) {
+        return NO;
+    } else {
+        [self savePendingUpdate:updatePackage[PackageHashKey]
+                      isLoading:NO];
+
+        _installMode = intallMode;
+        if (_installMode == CodePushInstallModeOnNextResume || _installMode == CodePushInstallModeOnNextSuspend) {
+            _minimumBackgroundDuration = minimumBackgroundDuration;
+
+            if (!_hasResumeListener) {
+                // Ensure we do not add the listener twice.
+                // Register for app resume notifications so that we
+                // can check for pending updates which support "restart on resume"
+                [[NSNotificationCenter defaultCenter] addObserver:self
+                                                         selector:@selector(applicationWillEnterForeground)
+                                                             name:UIApplicationWillEnterForegroundNotification
+                                                           object:RCTSharedApplication()];
+
+                [[NSNotificationCenter defaultCenter] addObserver:self
+                                                         selector:@selector(applicationWillResignActive)
+                                                             name:UIApplicationWillResignActiveNotification
+                                                           object:RCTSharedApplication()];
+
+                _hasResumeListener = YES;
+            }
+        }
+        if (_installMode == CodePushInstallModeImmediate){
+            [self restartApp:NO];
+        } else {
+            [self clearPendingRestart];
+        }
+
+        // Signal to JS that the update has been applied.
+        return YES;
+
+    }
 }
 
 #pragma mark - Application lifecycle event handlers
