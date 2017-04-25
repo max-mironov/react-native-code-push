@@ -33,6 +33,7 @@
 		81D51F3A1B6181C2000DA084 /* CodePushConfig.m in Sources */ = {isa = PBXBuildFile; fileRef = 81D51F391B6181C2000DA084 /* CodePushConfig.m */; };
 		8482F84C1E24C58300F793DB /* CodePush.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = 13BE3DEC1AC21097009241FE /* CodePush.h */; };
 		8482F84E1E24C66300F793DB /* CodePush.h in Headers */ = {isa = PBXBuildFile; fileRef = 13BE3DEC1AC21097009241FE /* CodePush.h */; };
+		C3289C9C1EAF2F8C0027409B /* CodePushConstants.m in Sources */ = {isa = PBXBuildFile; fileRef = C3289C9B1EAF2F8C0027409B /* CodePushConstants.m */; };
 		C35FA4171EA8941300057B7C /* CodePushAcquisitionSDKManager.m in Sources */ = {isa = PBXBuildFile; fileRef = C35FA4161EA8941300057B7C /* CodePushAcquisitionSDKManager.m */; };
 		C35FA4341EAE42E000057B7C /* CodePush+RestartManager.h in Headers */ = {isa = PBXBuildFile; fileRef = C35FA4321EAE42E000057B7C /* CodePush+RestartManager.h */; };
 		C35FA4351EAE42E000057B7C /* CodePush+RestartManager.m in Sources */ = {isa = PBXBuildFile; fileRef = C35FA4331EAE42E000057B7C /* CodePush+RestartManager.m */; };
@@ -97,6 +98,7 @@
 		54FFEDDF1BF550630061DD23 /* CodePushDownloadHandler.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CodePushDownloadHandler.m; path = CodePush/CodePushDownloadHandler.m; sourceTree = "<group>"; };
 		810D4E6C1B96935000B397E9 /* CodePushPackage.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CodePushPackage.m; path = CodePush/CodePushPackage.m; sourceTree = "<group>"; };
 		81D51F391B6181C2000DA084 /* CodePushConfig.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CodePushConfig.m; path = CodePush/CodePushConfig.m; sourceTree = "<group>"; };
+		C3289C9B1EAF2F8C0027409B /* CodePushConstants.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CodePushConstants.m; path = CodePush/CodePushConstants.m; sourceTree = "<group>"; };
 		C35FA4161EA8941300057B7C /* CodePushAcquisitionSDKManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CodePushAcquisitionSDKManager.m; path = CodePush/CodePushAcquisitionSDKManager.m; sourceTree = "<group>"; };
 		C35FA4321EAE42E000057B7C /* CodePush+RestartManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "CodePush+RestartManager.h"; path = "CodePush/CodePush+RestartManager.h"; sourceTree = "<group>"; };
 		C35FA4331EAE42E000057B7C /* CodePush+RestartManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = "CodePush+RestartManager.m"; path = "CodePush/CodePush+RestartManager.m"; sourceTree = "<group>"; };
@@ -186,6 +188,7 @@
 				13BE3DED1AC21097009241FE /* CodePush.m */,
 				C35FA4321EAE42E000057B7C /* CodePush+RestartManager.h */,
 				C35FA4331EAE42E000057B7C /* CodePush+RestartManager.m */,
+				C3289C9B1EAF2F8C0027409B /* CodePushConstants.m */,
 				81D51F391B6181C2000DA084 /* CodePushConfig.m */,
 				C35FA4161EA8941300057B7C /* CodePushAcquisitionSDKManager.m */,
 				54FFEDDF1BF550630061DD23 /* CodePushDownloadHandler.m */,
@@ -280,6 +283,7 @@
 				81D51F3A1B6181C2000DA084 /* CodePushConfig.m in Sources */,
 				54A002741C0E2880004C3CEC /* sha1.c in Sources */,
 				54FFEDE01BF550630061DD23 /* CodePushDownloadHandler.m in Sources */,
+				C3289C9C1EAF2F8C0027409B /* CodePushConstants.m in Sources */,
 				54A002711C0E2880004C3CEC /* hmac.c in Sources */,
 				54A002721C0E2880004C3CEC /* prng.c in Sources */,
 				5421FE311C58AD5A00986A55 /* CodePushTelemetryManager.m in Sources */,

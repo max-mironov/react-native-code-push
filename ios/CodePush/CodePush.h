@@ -80,7 +80,7 @@
 + (void)setUsingTestConfiguration:(BOOL)shouldUseTestConfiguration;
 + (void)clearUpdates;
 
--(BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending;
+- (BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending;
 
 //restart manager properties
 @property (nonatomic) BOOL restartAllowed;
@@ -215,6 +215,46 @@ failCallback:(void (^)(NSError *err))failCallback;
                           error:(NSError **)error;
 
 @end
+
+// Constants declarations below
+
+extern NSString *const DeploymentFailed;
+extern NSString *const DeploymentSucceeded;
+
+extern NSString *const CodePushSyncStatusChangedNotification;
+extern NSString *const StatusKey;
+extern NSString *const PreviousDeploymentKey;
+extern NSString *const PreviousLabelOrAppVersionKey;
+extern NSString *const AppVersionKey;
+extern NSString *const ServerURLConfigKey;
+extern NSString *const DeploymentKeyConfigKey;
+extern NSString *const ClientUniqueIDConfigKey;
+extern NSString *const PackageHashKey;
+extern NSString *const LabelKey;
+extern NSString *const IgonreAppVersionConfigKey;
+extern NSString *const UpdateInfoKey;
+extern NSString *const IsCompanionKey;
+extern NSString *const IsAvailableKey;
+extern NSString *const UpdateAppVersionKey;
+extern NSString *const DescriptionKey;
+extern NSString *const IsMandatoryKey;
+extern NSString *const PackageSizeKey;
+extern NSString *const DownloadUrlKey;
+extern NSString *const DownloadUrRemotePackageKey;
+extern NSString *const AppVersionConfigKey;
+extern NSString *const BuildVersionConfigKey;
+extern NSString *const BinaryBundleDateKey;
+extern NSString *const PackageIsPendingKey;
+extern NSString *const FailedInstallKey;
+extern NSString *const IsFirstRunKey;
+extern NSString *const IsDebugOnlyKey;
+extern NSString *const SyncStatusKey;
+extern NSString *const MinimumBackgroundDurationKey;
+extern NSString *const MandatoryInstallModeKey;
+extern NSString *const IgnoreFailedUpdatesKey;
+extern NSString *const InstallModeKey;
+extern NSString *const UpdateDialogKey;
+// End constants declaration
 
 void CPLog(NSString *formatString, ...);
 

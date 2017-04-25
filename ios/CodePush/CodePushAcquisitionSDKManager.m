@@ -36,49 +36,18 @@ static NSString *urlEncode(id object) {
 
 @implementation CodePushAquisitionSDKManager
 
-#pragma mark - Static variables
-
-// These constants represent valid deployment statuses
-static NSString *const DeploymentFailed = @"DeploymentFailed";
-static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
-
-static NSString *const StatusKey = @"status";
-static NSString *const PreviousDeploymentKey = @"previousDeploymentKey";
-static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersion";
-static NSString *const AppVersionKey = @"appVersion";
-static NSString *const ServerURLConfigKey = @"serverUrl";
-static NSString *const DeploymentKeyConfigKey = @"deploymentKey";
-static NSString *const ClientUniqueIDConfigKey = @"clientUniqueId";
-static NSString *const PackageHashKey = @"packageHash";
-static NSString *const LabelKey = @"label";
-static NSString *const IgonreAppVersionKey = @"_ignoreAppVersion";
-static NSString *const UpdateInfoKey = @"updateInfo";
-static NSString *const IsCompanionKey = @"isCompanion";
-static NSString *const IsAvailableKey = @"isAvailable";
-static NSString *const UpdateAppVersionKey = @"updateAppVersion";
-static NSString *const DescriptionKey = @"description";
-static NSString *const IsMandatoryKey = @"isMandatory";
-static NSString *const PackageSizeKey = @"packageSize";
-static NSString *const DownloadUrlKey = @"downloadURL";
-static NSString *const DownloadUrRemotePackageKey = @"downloadUrl"; //there is a mismatch in this, so service require to send with lower case for Url substring
-
-
 - (instancetype) initWithConfig:(NSDictionary *)config
 {
     self.serverURL = [config objectForKey:ServerURLConfigKey];
-    self.appVersion = [config objectForKey:AppVersionKey];
+    self.appVersion = [config objectForKey:AppVersionConfigKey];
     self.deploymentKey = [config objectForKey:DeploymentKeyConfigKey];
     self.clientUniqueId = [config objectForKey:ClientUniqueIDConfigKey];
-    if ([config objectForKey:IgonreAppVersionKey]){
-        self.ignoreAppVersion = @"YES";
-    } else{
-        self.ignoreAppVersion = @"NO";
-    }
+    self.ignoreAppVersion = [config objectForKey:IgonreAppVersionConfigKey] ? @"YES" : @"NO";
 
     return self;
 }
 
-//TODO: replace this two methods beolw with new methods using NSURLSession plus add ability to use callbacks. Perhaps replace with httpRequester class
+//TODO: replace this two methods below with new methods using NSURLSession plus add ability to use callbacks. Perhaps replace with httpRequester class if needed
 + (NSData *)peformHTTPPostRequest:(NSString *)requestUrl
                    withBody:(NSData *)body
 {
@@ -93,6 +62,11 @@ static NSString *const DownloadUrRemotePackageKey = @"downloadUrl"; //there is a
     NSHTTPURLResponse *responseCode = nil;
 
     NSData *oResponseData = [NSURLConnection sendSynchronousRequest:request returningResponse:&responseCode error:&error];
+
+    if (error){
+        NSLog(@"An Error occured getting %@, error message: %@", requestUrl, [error localizedDescription]);
+        return nil;
+    }
 
     if([responseCode statusCode] != 200){
         NSLog(@"Error getting %@, HTTP status code %li", requestUrl, (long)[responseCode statusCode]);
@@ -113,6 +87,11 @@ static NSString *const DownloadUrRemotePackageKey = @"downloadUrl"; //there is a
     NSHTTPURLResponse *responseCode = nil;
 
     NSData *oResponseData = [NSURLConnection sendSynchronousRequest:request returningResponse:&responseCode error:&error];
+
+    if (error){
+        NSLog(@"An Error occured getting %@, error message: %@", requestUrl, [error localizedDescription]);
+        return nil;
+    }
 
     if([responseCode statusCode] != 200){
         NSLog(@"Error getting %@, HTTP status code %li", requestUrl, (long)[responseCode statusCode]);
@@ -147,10 +126,15 @@ static NSString *const DownloadUrRemotePackageKey = @"downloadUrl"; //there is a
         NSError *error;
         NSDictionary *dictionaryResponse = [NSJSONSerialization JSONObjectWithData:oResponseData options:0 error:&error];
 
-        if (!error && dictionaryResponse && [dictionaryResponse objectForKey:UpdateInfoKey]){
+        if (error){
+            CPLog(@"An error occured on deserializing data: @", [error localizedDescription]);
+            return nil;
+        }
+
+        if (dictionaryResponse && [dictionaryResponse objectForKey:UpdateInfoKey]){
             response = [dictionaryResponse objectForKey:UpdateInfoKey];
         } else {
-            return response;
+            return nil;
         }
 
         BOOL updateAppVersion = [[response objectForKey:UpdateAppVersionKey]boolValue];
@@ -214,10 +198,16 @@ static NSString *const DownloadUrRemotePackageKey = @"downloadUrl"; //there is a
         [body setValue:prevLabelOrAppVersion forKey:PreviousLabelOrAppVersionKey];
     }
     if (prevDeploymentKey){
-        [body setValue:prevDeploymentKey forKey:prevDeploymentKey];
+        [body setValue:prevDeploymentKey forKey:PreviousDeploymentKey];
     }
     NSError *error;
     NSData *postData = [NSJSONSerialization dataWithJSONObject:body options:0 error:&error];
+
+    if (error){
+        CPLog(@"An error occured on JSON data serialization: @", [error localizedDescription]);
+        return;
+    }
+
     [[self class] peformHTTPPostRequest:requestUrl withBody:postData];
     return;
 }
@@ -232,6 +222,12 @@ static NSString *const DownloadUrRemotePackageKey = @"downloadUrl"; //there is a
                           nil];
     NSError *error;
     NSData *postData = [NSJSONSerialization dataWithJSONObject:body options:0 error:&error];
+
+    if (error){
+        CPLog(@"An error occured on JSON data serialization: @", [error localizedDescription]);
+        return;
+    }
+
     [[self class] peformHTTPPostRequest:requestUrl withBody:postData];
     return;
 }

@@ -46,10 +46,6 @@ RCT_EXPORT_MODULE()
 // These constants represent emitted events
 static NSString *const DownloadProgressEvent = @"CodePushDownloadProgress";
 
-// These constants represent valid deployment statuses
-static NSString *const DeploymentFailed = @"DeploymentFailed";
-static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
-
 // These keys represent the names we use to store data in NSUserDefaults
 static NSString *const FailedUpdatesKey = @"CODE_PUSH_FAILED_UPDATES";
 static NSString *const PendingUpdateKey = @"CODE_PUSH_PENDING_UPDATE";
@@ -59,22 +55,6 @@ static NSString *const PendingUpdateKey = @"CODE_PUSH_PENDING_UPDATE";
 static NSString *const PendingUpdateHashKey = @"hash";
 static NSString *const PendingUpdateIsLoadingKey = @"isLoading";
 
-// These keys are used to inspect/augment the metadata
-// that is associated with an update's package.
-static NSString *const UpdateAppVersionKey = @"updateAppVersion";
-static NSString *const AppVersionKey = @"appVersion";
-static NSString *const BinaryBundleDateKey = @"binaryDate";
-static NSString *const PackageHashKey = @"packageHash";
-static NSString *const PackageIsPendingKey = @"isPending";
-static NSString *const DeploymentKeyConfigKey = @"deploymentKey";
-static NSString *const FailedInstallKey = @"failedInstall";
-static NSString *const IsFirstRunKey = @"isFirstRun";
-static NSString *const IsDebugOnlyKey = @"_isDebugOnly";
-static NSString *const ServerURLConfigKey = @"serverUrl";
-static NSString *const PreviousDeploymentKey = @"previousDeploymentKey";
-static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersion";
-static NSString *const StatusKey = @"status";
-static NSString *const LabelKey = @"label";
 
 #pragma mark - Static variables
 
@@ -225,200 +205,19 @@ static NSString *bundleResourceSubdirectory = nil;
     [CodePushConfig current].deploymentKey = deploymentKey;
 }
 
-- (BOOL)isFirstRun:(NSString*)packageHash
-{
-    NSError *error;
-    BOOL isFirstRun = _isFirstRunAfterUpdate
-    && nil != packageHash
-    && [packageHash length] > 0
-    && [packageHash isEqualToString:[CodePushPackage getCurrentPackageHash:&error]];
-
-    return isFirstRun;
-}
-
-+ (NSDictionary *)getConfiguration
-{
-    NSDictionary *configuration = [[CodePushConfig current] configuration];
-    NSError *error;
-
-    if (isRunningBinaryVersion) {
-        // isRunningBinaryVersion will not get set to "YES" if running against the packager.
-        NSString *binaryHash = [CodePushUpdateUtils getHashForBinaryContents:[CodePush binaryBundleURL] error:&error];
-        if (error) {
-            CPLog(@"Error obtaining hash for binary contents: %@", error);
-            return configuration;
-        }
-
-        if (binaryHash == nil) {
-            // The hash was not generated either due to a previous unknown error or the fact that
-            // the React Native assets were not bundled in the binary (e.g. during dev/simulator)
-            // builds.
-            return configuration;
-        }
-
-        NSMutableDictionary *mutableConfiguration = [configuration mutableCopy];
-        [mutableConfiguration setObject:binaryHash forKey:PackageHashKey];
-        return mutableConfiguration;
-    }
-    return configuration;
-}
-
--(NSDictionary *)getNewStatusReport
-{
-    if (needToReportRollback) {
-        needToReportRollback = NO;
-        NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
-        NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
-        if (failedUpdates) {
-            NSDictionary *lastFailedPackage = [failedUpdates lastObject];
-            if (lastFailedPackage) {
-                return [CodePushTelemetryManager getRollbackReport:lastFailedPackage];
-            }
-        }
-    } else if (_isFirstRunAfterUpdate) {
-        NSError *error;
-        NSDictionary *currentPackage = [CodePushPackage getCurrentPackage:&error];
-        if (!error && currentPackage) {
-            return [CodePushTelemetryManager getUpdateReport:currentPackage];
-        }
-    } else if (isRunningBinaryVersion) {
-        NSString *appVersion = [[CodePushConfig current] appVersion];
-        return [CodePushTelemetryManager getBinaryUpdateReport:appVersion];
-    } else {
-        NSDictionary *retryStatusReport = [CodePushTelemetryManager getRetryStatusReport];
-        if (retryStatusReport) {
-            return retryStatusReport;
-        }
-    }
-    return nil;
-}
-
-+ (NSDictionary *)getUpdateMetadataFor:(CodePushUpdateState)updateState
-            currentPackageGettingError:(NSError **)error
-{
-    NSError *__autoreleasing internalError;
-
-    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:&internalError] mutableCopy];
-    if (internalError){
-        error = &internalError;
-        return nil;
-    }
-
-    if (package == nil){
-        // An error occured on getting package or
-        // The app hasn't downloaded any CodePush updates yet,
-        // so we simply return nil regardless if the user
-        // wanted to retrieve the pending or running update.
-        return nil;
-    }
-
-    // We have a CodePush update, so let's see if it's currently in a pending state.
-    BOOL currentUpdateIsPending = [[self class] isPendingUpdate:[package objectForKey:PackageHashKey]];
-
-    if (updateState == CodePushUpdateStatePending && !currentUpdateIsPending) {
-        // The caller wanted a pending update
-        // but there isn't currently one.
-        return nil;
-    } else if (updateState == CodePushUpdateStateRunning && currentUpdateIsPending) {
-        // The caller wants the running update, but the current
-        // one is pending, so we need to grab the previous.
-        return [CodePushPackage getPreviousPackage:error];
-    } else {
-        // The current package satisfies the request:
-        // 1) Caller wanted a pending, and there is a pending update
-        // 2) Caller wanted the running update, and there isn't a pending
-        // 3) Caller wants the latest update, regardless if it's pending or not
-        if (isRunningBinaryVersion) {
-            // This only matters in Debug builds. Since we do not clear "outdated" updates,
-            // we need to indicate to the JS side that somehow we have a current update on
-            // disk that is not actually running.
-            [package setObject:@(YES) forKey:@"_isDebugOnly"];
-        }
-        // Enable differentiating pending vs. non-pending updates
-        [package setObject:@(currentUpdateIsPending) forKey:PackageIsPendingKey];
-        return package;
-    }
-}
-
-+ (NSDictionary *)getCurrentPackage
-{
-    NSError *error;
-    return [[self class] getUpdateMetadataFor:CodePushUpdateStateLatest currentPackageGettingError:&error];
-}
-
-+(void)reportStatus:(NSDictionary *)statusReport
-{
-    NSMutableDictionary *configuration = [[CodePush getConfiguration] mutableCopy];
-    NSString *prevLabelOrAppVersion = [statusReport objectForKey:PreviousLabelOrAppVersionKey];
-    NSString *prevDeploymentKey = [statusReport objectForKey:PreviousDeploymentKey];
-
-    if (!prevDeploymentKey){
-        prevDeploymentKey = [configuration objectForKey:DeploymentKeyConfigKey];
-    }
-
-    if ([statusReport objectForKey:AppVersionKey]){
-        CPLog(@"Reporting binary update  %@", [statusReport objectForKey:AppVersionKey]);
-
-        CodePushAquisitionSDKManager *aquisitionSdk = [[CodePushAquisitionSDKManager alloc] initWithConfig:configuration];
-        [aquisitionSdk reportStatusDeploy:nil
-                               withStatus:nil
-                previousLabelOrAppVersion:prevLabelOrAppVersion
-                    previousDeploymentKey:prevDeploymentKey];
-    } else {
-        NSDictionary *package = [statusReport objectForKey:@"package"];
-        NSString *label = [package objectForKey:LabelKey];
-        NSString *reportStatus = [statusReport objectForKey:StatusKey];
-
-        if ([reportStatus  isEqual: DeploymentSucceeded]){
-            CPLog(@"Reporting CodePush update success %@", label);
-        } else {
-            CPLog(@"Reporting CodePush update rollback %@", label);
-        }
-
-        NSString *configDeploymentKey = [package objectForKey:DeploymentKeyConfigKey];
-        [configuration setObject:configDeploymentKey forKey:DeploymentKeyConfigKey];
-
-        CodePushAquisitionSDKManager *aquisitionSdk = [[CodePushAquisitionSDKManager alloc] initWithConfig:configuration];
-        [aquisitionSdk reportStatusDeploy:package
-                               withStatus:reportStatus
-                previousLabelOrAppVersion:prevLabelOrAppVersion
-                    previousDeploymentKey:prevDeploymentKey];
-
-    }
-
-    [CodePushTelemetryManager recordStatusReported:statusReport]; //aka recordStatusReported
-}
-
--(BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending
+- (BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending
 {
     // If this is an unconditional restart request, or there
     // is current pending update, then reload the app.
     if (!onlyIfUpdateIsPending || [[self class] isPendingUpdate:nil]) {
         [self loadBundle];
-        return @(YES);
+        return YES;
     }
 
-    return @(NO);
+    return NO;
 }
 
--(void) syncStatusChanged:(CodePushSyncStatus)syncStatus
-{
-    _syncStatus = syncStatus;
-
-    //Notify obervers about sync status chaged event
-    NSDictionary *userInfo = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt: syncStatus] forKey:@"syncStatus"];
-
-    [[NSNotificationCenter defaultCenter] postNotificationName:
-     @"CodePushSyncStatusChangedNotification" object:nil userInfo:userInfo];
-}
-
--(void) syncCompleted: (void(^)())callback
-{
-    _syncInProgress = NO;
-    callback();
-}
-
--(void) sync:(NSDictionary *)syncOptions withCallback:(void(^)())callback
+- (void) sync:(NSDictionary *)syncOptions withCallback:(void(^)())callback
 {
     if (_syncInProgress){
         CPLog(@"Sync already in progress.");
@@ -431,11 +230,11 @@ static NSString *bundleResourceSubdirectory = nil;
 
     NSMutableDictionary *mergedSyncOptions = [[NSMutableDictionary alloc] initWithObjectsAndKeys:
                                     [NSNull null], DeploymentKeyConfigKey,
-                                    @(YES), @"ignoreFailedUpdates",
-                                    [NSNumber numberWithInt: CodePushInstallModeOnNextRestart],@"installMode",
-                                    [NSNumber numberWithInt: CodePushInstallModeImmediate], @"mandatoryInstallMode",
-                                    [NSNumber numberWithInt: 0],@"minimumBackgroundDuration",
-                                    [NSNull null],@"updateDialog",
+                                    @(YES), IgnoreFailedUpdatesKey,
+                                    [NSNumber numberWithInt: CodePushInstallModeOnNextRestart],InstallModeKey,
+                                    [NSNumber numberWithInt: CodePushInstallModeImmediate], MandatoryInstallModeKey,
+                                    [NSNumber numberWithInt: 0],MinimumBackgroundDurationKey,
+                                    [NSNull null],UpdateDialogKey,
                                     nil];
 
     [mergedSyncOptions addEntriesFromDictionary:syncOptions]; //merge with provided options
@@ -444,7 +243,6 @@ static NSString *bundleResourceSubdirectory = nil;
     NSDictionary *newStatusReport = [self getNewStatusReport];
     if (newStatusReport){
         [[self class] reportStatus:newStatusReport];
-
     }
 
     NSString *deploymentKey = [mergedSyncOptions objectForKey:DeploymentKeyConfigKey];
@@ -486,7 +284,7 @@ static NSString *bundleResourceSubdirectory = nil;
                                 forKey:BinaryBundleDateKey];
     }
 
-    if (![mutableUpdatePackage objectForKey:@"downloadUrl"]){
+    if (![mutableUpdatePackage objectForKey:DownloadUrRemotePackageKey]){
         CPLog(@"Cannot download an update without a download url");
         [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
         [self syncCompleted:callback];
@@ -512,21 +310,17 @@ static NSString *bundleResourceSubdirectory = nil;
              return;
          }
 
-         //report logic
+         //reporting logic
          NSMutableDictionary *config = [[CodePush getConfiguration] mutableCopy];
          CodePushAquisitionSDKManager *aquisitionSdk = [[CodePushAquisitionSDKManager alloc] initWithConfig:config];
          [aquisitionSdk reportStatusDownload:remotePackage];
-         //end report logic
+         //end reporting logic
 
+         CodePushInstallMode resolvedInstallMode = [[updatePackage objectForKey:IsMandatoryKey] boolValue] ?
+            [[mergedSyncOptions objectForKey:MandatoryInstallModeKey] intValue] :
+            [[mergedSyncOptions objectForKey:InstallModeKey] intValue];
 
-         CodePushInstallMode resolvedInstallMode = [[mergedSyncOptions objectForKey:@"installMode"] intValue];
-         // Determine the correct install mode based on whether the update is mandatory or not.
-         BOOL isMandatory = [[updatePackage objectForKey:@"isMandatory"] boolValue];
-         if (isMandatory){
-             resolvedInstallMode = [[mergedSyncOptions objectForKey:@"mandatoryInstallMode"] intValue];
-         }
-
-         int resolvedMinimumBackgroundDuration = [[mergedSyncOptions objectForKey:@"minimumBackgroundDuration"] intValue];
+         int resolvedMinimumBackgroundDuration = [[mergedSyncOptions objectForKey:MinimumBackgroundDurationKey] intValue];
 
          [self syncStatusChanged:CodePushSyncStatusINSTALLING_UPDATE];
 
@@ -545,9 +339,7 @@ static NSString *bundleResourceSubdirectory = nil;
              [self savePendingUpdate:updatePackage[PackageHashKey]
                            isLoading:NO];
 
-             CodePushInstallMode installMode = resolvedInstallMode;
-
-             if (installMode == CodePushInstallModeOnNextResume || installMode == CodePushInstallModeOnNextSuspend) {
+             if (resolvedInstallMode == CodePushInstallModeOnNextResume || resolvedInstallMode == CodePushInstallModeOnNextSuspend) {
                   _minimumBackgroundDuration = resolvedMinimumBackgroundDuration;
 
                  if (!_hasResumeListener) {
@@ -568,7 +360,7 @@ static NSString *bundleResourceSubdirectory = nil;
                  }
              }
 
-             if (installMode == CodePushInstallModeImmediate){
+             if (resolvedInstallMode == CodePushInstallModeImmediate){
                  [self restartApp:NO];
              } else {
                  [self clearPendingRestart];
@@ -696,6 +488,17 @@ static NSString *bundleResourceSubdirectory = nil;
 @synthesize pauseCallback = _pauseCallback;
 @synthesize paused = _paused;
 
+- (BOOL)isFirstRun:(NSString*)packageHash
+{
+    NSError *error;
+    BOOL isFirstRun = _isFirstRunAfterUpdate
+    && nil != packageHash
+    && [packageHash length] > 0
+    && [packageHash isEqualToString:[CodePushPackage getCurrentPackageHash:&error]];
+
+    return isFirstRun;
+}
+
 - (void)setPaused:(BOOL)paused
 {
     if (_paused != paused) {
@@ -769,6 +572,34 @@ static NSString *bundleResourceSubdirectory = nil;
                      }];
 }
 
+
++ (NSDictionary *)getConfiguration
+{
+    NSDictionary *configuration = [[CodePushConfig current] configuration];
+    NSError *error;
+
+    if (isRunningBinaryVersion) {
+        // isRunningBinaryVersion will not get set to "YES" if running against the packager.
+        NSString *binaryHash = [CodePushUpdateUtils getHashForBinaryContents:[CodePush binaryBundleURL] error:&error];
+        if (error) {
+            CPLog(@"Error obtaining hash for binary contents: %@", error);
+            return configuration;
+        }
+
+        if (binaryHash == nil) {
+            // The hash was not generated either due to a previous unknown error or the fact that
+            // the React Native assets were not bundled in the binary (e.g. during dev/simulator)
+            // builds.
+            return configuration;
+        }
+
+        NSMutableDictionary *mutableConfiguration = [configuration mutableCopy];
+        [mutableConfiguration setObject:binaryHash forKey:PackageHashKey];
+        return mutableConfiguration;
+    }
+    return configuration;
+}
+
 /*
  * This method ensures that the app was packaged with a JS bundle
  * file, and if not, it throws the appropriate exception.
@@ -804,10 +635,27 @@ static NSString *bundleResourceSubdirectory = nil;
 
     if (self) {
         [self initializeUpdateAfterRestart];
-        restartAllowed = YES;
+        restartAllowed = YES; //set allowed by default
     }
 
     return self;
+}
+
+- (void) syncCompleted: (void(^)())callback
+{
+    _syncInProgress = NO;
+    callback();
+}
+
+- (void) syncStatusChanged:(CodePushSyncStatus)syncStatus
+{
+    _syncStatus = syncStatus;
+
+    //Notify obervers about sync status changed event
+    NSDictionary *userInfo = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt: syncStatus] forKey:SyncStatusKey];
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:
+     CodePushSyncStatusChangedNotification object:nil userInfo:userInfo];
 }
 
 /*
@@ -887,6 +735,137 @@ static NSString *bundleResourceSubdirectory = nil;
                            (!packageHash || [pendingUpdate[PendingUpdateHashKey] isEqualToString:packageHash]);
 
     return updateIsPending;
+}
+
++ (NSDictionary *)getUpdateMetadataFor:(CodePushUpdateState)updateState
+            currentPackageGettingError:(NSError **)error
+{
+    NSError *__autoreleasing internalError;
+
+    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:&internalError] mutableCopy];
+    if (internalError){
+        error = &internalError;
+        return nil;
+    }
+
+    if (package == nil){
+        // An error occured on getting package or
+        // The app hasn't downloaded any CodePush updates yet,
+        // so we simply return nil regardless if the user
+        // wanted to retrieve the pending or running update.
+        return nil;
+    }
+
+    // We have a CodePush update, so let's see if it's currently in a pending state.
+    BOOL currentUpdateIsPending = [[self class] isPendingUpdate:[package objectForKey:PackageHashKey]];
+
+    if (updateState == CodePushUpdateStatePending && !currentUpdateIsPending) {
+        // The caller wanted a pending update
+        // but there isn't currently one.
+        return nil;
+    } else if (updateState == CodePushUpdateStateRunning && currentUpdateIsPending) {
+        // The caller wants the running update, but the current
+        // one is pending, so we need to grab the previous.
+        return [CodePushPackage getPreviousPackage:error];
+    } else {
+        // The current package satisfies the request:
+        // 1) Caller wanted a pending, and there is a pending update
+        // 2) Caller wanted the running update, and there isn't a pending
+        // 3) Caller wants the latest update, regardless if it's pending or not
+        if (isRunningBinaryVersion) {
+            // This only matters in Debug builds. Since we do not clear "outdated" updates,
+            // we need to indicate to the JS side that somehow we have a current update on
+            // disk that is not actually running.
+            [package setObject:@(YES) forKey:IsDebugOnlyKey];
+        }
+        // Enable differentiating pending vs. non-pending updates
+        [package setObject:@(currentUpdateIsPending) forKey:PackageIsPendingKey];
+        return package;
+    }
+}
+
++ (NSDictionary *)getCurrentPackage
+{
+    NSError *error;
+    NSDictionary *currentPackage = [[self class] getUpdateMetadataFor:CodePushUpdateStateLatest currentPackageGettingError:&error];
+    if (error){
+        CPLog(@"An error occured: %@", [error localizedDescription]);
+        return nil;
+    }
+    return currentPackage;
+}
+
++ (void)reportStatus:(NSDictionary *)statusReport
+{
+    NSMutableDictionary *configuration = [[CodePush getConfiguration] mutableCopy];
+    NSString *prevLabelOrAppVersion = [statusReport objectForKey:PreviousLabelOrAppVersionKey];
+    NSString *prevDeploymentKey = [statusReport objectForKey:PreviousDeploymentKey];
+
+    if (!prevDeploymentKey){
+        prevDeploymentKey = [configuration objectForKey:DeploymentKeyConfigKey];
+    }
+
+    if ([statusReport objectForKey:AppVersionKey]){
+        CPLog(@"Reporting binary update  %@", [statusReport objectForKey:AppVersionKey]);
+
+        CodePushAquisitionSDKManager *aquisitionSdk = [[CodePushAquisitionSDKManager alloc] initWithConfig:configuration];
+        [aquisitionSdk reportStatusDeploy:nil
+                               withStatus:nil
+                previousLabelOrAppVersion:prevLabelOrAppVersion
+                    previousDeploymentKey:prevDeploymentKey];
+    } else {
+        NSDictionary *package = [statusReport objectForKey:@"package"];
+        NSString *label = [package objectForKey:LabelKey];
+        NSString *reportStatus = [statusReport objectForKey:StatusKey];
+
+        if ([reportStatus  isEqual: DeploymentSucceeded]){
+            CPLog(@"Reporting CodePush update success %@", label);
+        } else {
+            CPLog(@"Reporting CodePush update rollback %@", label);
+        }
+
+        NSString *configDeploymentKey = [package objectForKey:DeploymentKeyConfigKey];
+        [configuration setObject:configDeploymentKey forKey:DeploymentKeyConfigKey];
+
+        CodePushAquisitionSDKManager *aquisitionSdk = [[CodePushAquisitionSDKManager alloc] initWithConfig:configuration];
+        [aquisitionSdk reportStatusDeploy:package
+                               withStatus:reportStatus
+                previousLabelOrAppVersion:prevLabelOrAppVersion
+                    previousDeploymentKey:prevDeploymentKey];
+
+    }
+
+    [CodePushTelemetryManager recordStatusReported:statusReport]; //aka recordStatusReported
+}
+
+- (NSDictionary *)getNewStatusReport
+{
+    if (needToReportRollback) {
+        needToReportRollback = NO;
+        NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+        NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
+        if (failedUpdates) {
+            NSDictionary *lastFailedPackage = [failedUpdates lastObject];
+            if (lastFailedPackage) {
+                return [CodePushTelemetryManager getRollbackReport:lastFailedPackage];
+            }
+        }
+    } else if (_isFirstRunAfterUpdate) {
+        NSError *error;
+        NSDictionary *currentPackage = [CodePushPackage getCurrentPackage:&error];
+        if (!error && currentPackage) {
+            return [CodePushTelemetryManager getUpdateReport:currentPackage];
+        }
+    } else if (isRunningBinaryVersion) {
+        NSString *appVersion = [[CodePushConfig current] appVersion];
+        return [CodePushTelemetryManager getBinaryUpdateReport:appVersion];
+    } else {
+        NSDictionary *retryStatusReport = [CodePushTelemetryManager getRetryStatusReport];
+        if (retryStatusReport) {
+            return retryStatusReport;
+        }
+    }
+    return nil;
 }
 
 /*
