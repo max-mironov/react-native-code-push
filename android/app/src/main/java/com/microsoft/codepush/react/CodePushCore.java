@@ -379,6 +379,9 @@ public class CodePushCore {
         CodePushNativeModule codePushModule = new CodePushNativeModule(mReactApplicationContext, this);
         CodePushDialog dialogModule = new CodePushDialog(mReactApplicationContext);
 
+        addSyncStatusListener(codePushModule);
+        addDownloadProgressListener(codePushModule);
+
         List<NativeModule> nativeModules = new ArrayList<>();
         nativeModules.add(codePushModule);
         nativeModules.add(dialogModule);
@@ -532,15 +535,20 @@ public class CodePushCore {
 
         if (syncOptions == null) {
             syncOptions = getDefaultSyncOptions();
-        } else if (syncOptions.DeploymentKey == null || syncOptions.DeploymentKey.isEmpty()) {
+        }
+        if (syncOptions.DeploymentKey == null || syncOptions.DeploymentKey.isEmpty()) {
             syncOptions.DeploymentKey = mDeploymentKey;
-        } else if (syncOptions.InstallMode == null) {
+        }
+        if (syncOptions.InstallMode == null) {
             syncOptions.InstallMode = CodePushInstallMode.ON_NEXT_RESTART;
-        } else if (syncOptions.MandatoryInstallMode == null) {
+        }
+        if (syncOptions.MandatoryInstallMode == null) {
             syncOptions.MandatoryInstallMode = CodePushInstallMode.IMMEDIATE;
-        } else if (syncOptions.MinimumBackgroundDuration == null) {
+        }
+        if (syncOptions.MinimumBackgroundDuration == null) {
             syncOptions.MinimumBackgroundDuration = 0;
-        } else if (syncOptions.IgnoreFailedUpdates == null) {
+        }
+        if (syncOptions.IgnoreFailedUpdates == null) {
             syncOptions.IgnoreFailedUpdates = true;
         }
 

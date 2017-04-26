@@ -25,9 +25,10 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-public class CodePushNativeModule extends ReactContextBaseJavaModule implements CodePushDownloadProgressListener {
+public class CodePushNativeModule extends ReactContextBaseJavaModule implements CodePushDownloadProgressListener, CodePushSyncStatusListener {
     private String mBinaryContentsHash = null;
     private static boolean mNotifyDownloadProgress = false;
+    private static boolean mNotifySyncStatusChanged = false;
 
     private CodePushCore mCodePushCore;
 
@@ -38,8 +39,6 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule implements 
 
         // Initialize module state while we have a reference to the current context.
         mBinaryContentsHash = CodePushUpdateUtils.getHashForBinaryContents(reactContext, mCodePushCore.isDebugMode());
-
-        mCodePushCore.addDownloadProgressListener(this);
     }
 
     @Override
@@ -74,11 +73,11 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule implements 
     }
 
     @ReactMethod
-    public void checkForUpdate(final Promise promise) {
+    public void checkForUpdate(final String deploymentKey, final Promise promise) {
         AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
             @Override
             protected Void doInBackground(Void... params) {
-                CodePushRemotePackage remotePackage = mCodePushCore.checkForUpdate();
+                CodePushRemotePackage remotePackage = mCodePushCore.checkForUpdate(deploymentKey);
                 if (remotePackage != null) {
                     JSONObject jsonObject = CodePushUtils.convertObjectToJsonObject(remotePackage);
                     promise.resolve(CodePushUtils.convertJsonObjectToWritable(jsonObject));
@@ -93,11 +92,19 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule implements 
     }
 
     @ReactMethod
-    public void sync(final Promise promise) {
+    public void sync(
+            final ReadableMap syncOptionsMap,
+            final boolean notifySyncStatusChanged,
+            final boolean notifyDownloadProgress,
+            final Promise promise
+    ) {
+        mNotifySyncStatusChanged = notifySyncStatusChanged;
+        mNotifyDownloadProgress = notifyDownloadProgress;
         AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
             @Override
             protected Void doInBackground(Void... params) {
-                mCodePushCore.sync();
+                CodePushSyncOptions syncOptions = CodePushUtils.convertReadableToObject(syncOptionsMap, CodePushSyncOptions.class);
+                mCodePushCore.sync(syncOptions);
                 promise.resolve("");
                 return null;
             }
@@ -250,6 +257,14 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule implements 
     // It is only to be used during tests. No-ops if the test configuration flag is not set.
     public void downloadAndReplaceCurrentBundle(String remoteBundleUrl) {
         mCodePushCore.downloadAndReplaceCurrentBundle(remoteBundleUrl);
+    }
+
+    public void syncStatusChanged(CodePushSyncStatus syncStatus) {
+        if (mNotifySyncStatusChanged) {
+            getReactApplicationContext()
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit(CodePushConstants.SYNC_STATUS_EVENT_NAME, syncStatus.getValue());
+        }
     }
 
     public void downloadProgressChanged(long receivedBytes, long totalBytes) {

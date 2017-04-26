@@ -1,7 +1,7 @@
 import { AcquisitionManager as Sdk } from "code-push/script/acquisition-sdk";
 import { Alert } from "./AlertAdapter";
 import requestFetchAdapter from "./request-fetch-adapter";
-import { AppState, Platform } from "react-native";
+import { AppState, Platform, NativeEventEmitter } from "react-native";
 import log from "./logging";
 
 let NativeCodePush = require("react-native").NativeModules.CodePush;
@@ -83,6 +83,46 @@ async function checkForUpdate(deploymentKey = null) {
     remotePackage.failedInstall = await NativeCodePush.isFailedUpdate(remotePackage.packageHash);
     remotePackage.deploymentKey = deploymentKey || nativeConfig.deploymentKey;
     return remotePackage;
+  }
+}
+
+async function checkForUpdateNative(deploymentKey = null) {
+  const update = await NativeCodePush.checkForUpdate(deploymentKey);
+  if (typeof update === "object") {
+    return { ...update, ...PackageMixins.remote() };
+  } else {
+    return null;
+  }
+}
+
+async function syncNative(syncOptions = null, syncStatusChangeCallback, downloadProgressCallback) {
+  let syncStatusChangeSubscription;
+  if (typeof syncStatusChangeCallback === "function") {
+    const codePushEventEmitter = new NativeEventEmitter(NativeCodePush);
+    syncStatusChangeSubscription = codePushEventEmitter.addListener(
+      "CodePushSyncStatus",
+      syncStatusChangeCallback
+    );
+  }
+
+  let downloadProgressSubscription;
+  if (typeof downloadProgressCallback === "function") {
+    const codePushEventEmitter = new NativeEventEmitter(NativeCodePush);
+    downloadProgressSubscription = codePushEventEmitter.addListener(
+      "CodePushDownloadProgress",
+      downloadProgressCallback
+    );
+  }
+
+  try {
+    await NativeCodePush.sync(syncOptions, !!syncStatusChangeCallback, !!downloadProgressCallback);
+  } catch (error) {
+    typeof syncStatusChangeCallback === "function" && syncStatusChangeCallback(CodePush.SyncStatus.UNKNOWN_ERROR);
+    log(error.message);
+    throw error;
+  } finally {
+    syncStatusChangeSubscription && syncStatusChangeSubscription.remove();
+    downloadProgressSubscription && downloadProgressSubscription.remove();
   }
 }
 
@@ -482,6 +522,7 @@ if (NativeCodePush) {
   Object.assign(CodePush, {
     AcquisitionSdk: Sdk,
     checkForUpdate,
+    checkForUpdateNative,
     getConfiguration,
     getCurrentPackage,
     getUpdateMetadata,
@@ -491,6 +532,7 @@ if (NativeCodePush) {
     restartApp: NativeCodePush.restartApp,
     setUpTestDependencies,
     sync,
+    syncNative,
     disallowRestart: NativeCodePush.disallowRestart,
     allowRestart: NativeCodePush.allowRestart,
     InstallMode: {
