@@ -519,7 +519,17 @@ static NSString *bundleResourceSubdirectory = nil;
 
              @"codePushUpdateStateRunning": @(CodePushUpdateStateRunning),
              @"codePushUpdateStatePending": @(CodePushUpdateStatePending),
-             @"codePushUpdateStateLatest": @(CodePushUpdateStateLatest)
+             @"codePushUpdateStateLatest": @(CodePushUpdateStateLatest),
+
+             @"codePushSyncStatusUpToDate": @(CodePushSyncStatusUP_TO_DATE),
+             @"codePushSyncStatusUpdateInstalled": @(CodePushSyncStatusUPDATE_INSTALLED),
+             @"codePushSyncStatusUpdateIgnored": @(CodePushSyncStatusUPDATE_IGNORED),
+             @"codePushSyncStatusUnknownError": @(CodePushSyncStatusUNKNOWN_ERROR),
+             @"codePushSyncStatusSyncInProgress": @(CodePushSyncStatusSYNC_IN_PROGRESS),
+             @"codePushSyncStatusCheckingForUpdate": @(CodePushSyncStatusCHECKING_FOR_UPDATE),
+             @"codePushSyncStatusAwaitingUserAction": @(CodePushSyncStatusAWAITING_USER_ACTION),
+             @"codePushSyncStatusDownloadingPackage": @(CodePushSyncStatusDOWNLOADING_PACKAGE),
+             @"codePushSyncStatusInstallingUpdate": @(CodePushSyncStatusINSTALLING_UPDATE),
             };
 };
 

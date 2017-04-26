@@ -37,6 +37,7 @@
 		C35FA4171EA8941300057B7C /* CodePushAcquisitionSDKManager.m in Sources */ = {isa = PBXBuildFile; fileRef = C35FA4161EA8941300057B7C /* CodePushAcquisitionSDKManager.m */; };
 		C35FA4341EAE42E000057B7C /* CodePush+RestartManager.h in Headers */ = {isa = PBXBuildFile; fileRef = C35FA4321EAE42E000057B7C /* CodePush+RestartManager.h */; };
 		C35FA4351EAE42E000057B7C /* CodePush+RestartManager.m in Sources */ = {isa = PBXBuildFile; fileRef = C35FA4331EAE42E000057B7C /* CodePush+RestartManager.m */; };
+		C38B262E1EB0CB45002CBA61 /* RCTConvert+CodePushSyncStatus.m in Sources */ = {isa = PBXBuildFile; fileRef = C38B262D1EB0CB45002CBA61 /* RCTConvert+CodePushSyncStatus.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -102,6 +103,7 @@
 		C35FA4161EA8941300057B7C /* CodePushAcquisitionSDKManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CodePushAcquisitionSDKManager.m; path = CodePush/CodePushAcquisitionSDKManager.m; sourceTree = "<group>"; };
 		C35FA4321EAE42E000057B7C /* CodePush+RestartManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "CodePush+RestartManager.h"; path = "CodePush/CodePush+RestartManager.h"; sourceTree = "<group>"; };
 		C35FA4331EAE42E000057B7C /* CodePush+RestartManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = "CodePush+RestartManager.m"; path = "CodePush/CodePush+RestartManager.m"; sourceTree = "<group>"; };
+		C38B262D1EB0CB45002CBA61 /* RCTConvert+CodePushSyncStatus.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = "RCTConvert+CodePushSyncStatus.m"; path = "CodePush/RCTConvert+CodePushSyncStatus.m"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +199,7 @@
 				5421FE301C58AD5A00986A55 /* CodePushTelemetryManager.m */,
 				540D20111C7684FE00D6EF41 /* CodePushUpdateUtils.m */,
 				1B23B9131BF9267B000BB2F0 /* RCTConvert+CodePushInstallMode.m */,
+				C38B262D1EB0CB45002CBA61 /* RCTConvert+CodePushSyncStatus.m */,
 				1BCC09A61CC19EB700DDC0DD /* RCTConvert+CodePushUpdateState.m */,
 				54A002481C0E2880004C3CEC /* SSZipArchive */,
 				134814211AA4EA7D00B7C361 /* Products */,
@@ -295,6 +298,7 @@
 				54A0026C1C0E2880004C3CEC /* aescrypt.c in Sources */,
 				C35FA4171EA8941300057B7C /* CodePushAcquisitionSDKManager.m in Sources */,
 				1B762E901C9A5E9A006EF800 /* CodePushErrorUtils.m in Sources */,
+				C38B262E1EB0CB45002CBA61 /* RCTConvert+CodePushSyncStatus.m in Sources */,
 				C35FA4351EAE42E000057B7C /* CodePush+RestartManager.m in Sources */,
 				54A002701C0E2880004C3CEC /* fileenc.c in Sources */,
 				5498D8F61D21F14100B5EB43 /* CodePushUtils.m in Sources */,
