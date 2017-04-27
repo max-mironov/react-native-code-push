@@ -32,6 +32,8 @@
     // Used to coordinate the dispatching of download progress events to JS.
     long long _latestExpectedContentLength;
     long long _latestReceivedConentLength;
+
+    BOOL _notifyOnSyncChanged;
     BOOL _didUpdateProgress;
     BOOL _syncInProgress;
     CodePushSyncStatus _syncStatus;
@@ -45,6 +47,7 @@ RCT_EXPORT_MODULE()
 
 // These constants represent emitted events
 static NSString *const DownloadProgressEvent = @"CodePushDownloadProgress";
+static NSString *const SyncStatusChangedEvent = @"CodePushSyncStatus";
 
 // These keys represent the names we use to store data in NSUserDefaults
 static NSString *const FailedUpdatesKey = @"CODE_PUSH_FAILED_UPDATES";
@@ -218,7 +221,11 @@ static NSString *bundleResourceSubdirectory = nil;
 }
 
 - (void) sync:(NSDictionary *)syncOptions withCallback:(void(^)())callback
+        notifySyncStatus:(BOOL)notifySyncStatus
+        notifyProgress:(BOOL)notifyProgress
 {
+    _notifyOnSyncChanged = notifySyncStatus ? YES : NO;
+
     if (_syncInProgress){
         CPLog(@"Sync already in progress.");
         [self syncStatusChanged:CodePushSyncStatusSYNC_IN_PROGRESS];
@@ -284,6 +291,13 @@ static NSString *bundleResourceSubdirectory = nil;
                                 forKey:BinaryBundleDateKey];
     }
 
+    if (notifyProgress) {
+        // Set up and unpause the frame observer so that it can emit
+        // progress events every frame if the progress is updated.
+        _didUpdateProgress = NO;
+        self.paused = NO;
+    }
+
     if (![mutableUpdatePackage objectForKey:DownloadUrRemotePackageKey]){
         CPLog(@"Cannot download an update without a download url");
         [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
@@ -297,6 +311,18 @@ static NSString *bundleResourceSubdirectory = nil;
      operationQueue:_methodQueue
      // The download is progressing forward
      progressCallback:^(long long expectedContentLength, long long receivedContentLength) {
+         // Update the download progress so that the frame observer can notify the JS side
+         _latestExpectedContentLength = expectedContentLength;
+         _latestReceivedConentLength = receivedContentLength;
+         _didUpdateProgress = YES;
+
+         // If the download is completed, stop observing frame
+         // updates and synchronously send the last event.
+         if (expectedContentLength == receivedContentLength) {
+             _didUpdateProgress = NO;
+             self.paused = YES;
+             [self dispatchDownloadProgressEvent];
+         }
      }
      // The download completed
      doneCallback:^{
@@ -344,6 +370,10 @@ static NSString *bundleResourceSubdirectory = nil;
          if ([CodePushErrorUtils isCodePushError:err]) {
              [self saveFailedUpdate:mutableUpdatePackage];
          }
+
+         // Stop observing frame updates if the download fails.
+         _didUpdateProgress = NO;
+         self.paused = YES;
 
          CPLog([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
          [self syncStatusChanged:CodePushSyncStatusUNKNOWN_ERROR];
@@ -551,6 +581,13 @@ static NSString *bundleResourceSubdirectory = nil;
                      }];
 }
 
+- (void)dispatchSyncChangedEvent {
+    //notify the script side about sync status changed
+    [self sendEventWithName:SyncStatusChangedEvent body:@{
+                                                          @"syncStatus": [NSNumber numberWithInt:_syncStatus]
+                                                          }];
+}
+
 
 + (NSDictionary *)getConfiguration
 {
@@ -588,21 +625,25 @@ static NSString *bundleResourceSubdirectory = nil;
     if (![self binaryBundleURL]) {
         NSString *errorMessage;
 
-#if TARGET_IPHONE_SIMULATOR
-        errorMessage = @"React Native doesn't generate your app's JS bundle by default when deploying to the simulator. "
-        "If you'd like to test CodePush using the simulator, you can do one of three things depending on your React "
-        "Native version and/or preferred workflow:\n\n"
+    #ifdef DEBUG
+        #if TARGET_IPHONE_SIMULATOR
+            errorMessage = @"React Native doesn't generate your app's JS bundle by default when deploying to the simulator. "
+            "If you'd like to test CodePush using the simulator, you can do one of three things depending on your React "
+            "Native version and/or preferred workflow:\n\n"
 
-        "1. Update your AppDelegate.m file to load the JS bundle from the packager instead of from CodePush. "
-        "You can still test your CodePush update experience using this workflow (debug builds only).\n\n"
+            "1. Update your AppDelegate.m file to load the JS bundle from the packager instead of from CodePush. "
+            "You can still test your CodePush update experience using this workflow (debug builds only).\n\n"
 
-        "2. Force the JS bundle to be generated in simulator builds by removing the if block that echoes "
-        "\"Skipping bundling for Simulator platform\" in the \"node_modules/react-native/packager/react-native-xcode.sh\" file.\n\n"
+            "2. Force the JS bundle to be generated in simulator builds by removing the if block that echoes "
+            "\"Skipping bundling for Simulator platform\" in the \"node_modules/react-native/packager/react-native-xcode.sh\" file.\n\n"
 
-        "3. Deploy a release build to the simulator, which unlike debug builds, will generate the JS bundle (React Native >=0.22.0 only).";
-#else
-        errorMessage = [NSString stringWithFormat:@"The specified JS bundle file wasn't found within the app's binary. Is \"%@\" the correct file name?", [bundleResourceName stringByAppendingPathExtension:bundleResourceExtension]];
-#endif
+            "3. Deploy a release build to the simulator, which unlike debug builds, will generate the JS bundle (React Native >=0.22.0 only).";
+        #else
+            errorMessage = [NSString stringWithFormat:@"The specified JS bundle file wasn't found within the app's binary. Is \"%@\" the correct file name?", [bundleResourceName stringByAppendingPathExtension:bundleResourceExtension]];
+        #endif
+    #else
+        errorMessage = @"Something went wrong. Please verify if generated JS bundle is correct. ";
+    #endif
 
         RCTFatal([CodePushErrorUtils errorWithMessage:errorMessage]);
     }
@@ -629,6 +670,11 @@ static NSString *bundleResourceSubdirectory = nil;
 - (void) syncStatusChanged:(CodePushSyncStatus)syncStatus
 {
     _syncStatus = syncStatus;
+
+    //notify js side
+    if (_notifyOnSyncChanged){
+        [self dispatchSyncChangedEvent];
+    }
 
     //Notify obervers about sync status changed event
     NSDictionary *userInfo = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt: syncStatus] forKey:SyncStatusKey];
@@ -719,8 +765,11 @@ static NSString *bundleResourceSubdirectory = nil;
 + (NSDictionary *)getUpdateMetadataFor:(CodePushUpdateState)updateState
             currentPackageGettingError:(NSError **)error
 {
-    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:error] mutableCopy];
-    if (error){
+    NSError *__autoreleasing internalError;
+
+    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:&internalError] mutableCopy];
+    if (internalError){
+        error = &internalError;
         return nil;
     }
 
@@ -958,7 +1007,7 @@ static NSString *bundleResourceSubdirectory = nil;
 }
 
 - (NSArray<NSString *> *)supportedEvents {
-    return @[DownloadProgressEvent];
+    return @[DownloadProgressEvent, SyncStatusChangedEvent];
 }
 
 - (BOOL)installUpdate:(NSDictionary*)updatePackage
@@ -1265,14 +1314,16 @@ RCT_EXPORT_METHOD(disallowRestart:(RCTPromiseResolveBlock)resolve
 
 
 RCT_EXPORT_METHOD(sync:(NSDictionary *)syncOptions
+                  notifySyncStatus:(BOOL)notifySyncStatus
+                  notifyProgress:(BOOL)notifyProgress
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 {
     [self sync:syncOptions withCallback:^{
-        //for test
-        CodePushSyncStatus syncStatus = _syncStatus;
         resolve(@(YES));
-    }];
+    }
+    notifySyncStatus:notifySyncStatus
+    notifyProgress:notifyProgress];
 }
 
 RCT_EXPORT_METHOD(checkForUpdate:(NSString *)deploymentKey
