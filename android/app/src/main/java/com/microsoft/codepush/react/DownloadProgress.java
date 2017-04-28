@@ -3,7 +3,7 @@ package com.microsoft.codepush.react;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
 
-class DownloadProgress {
+public class DownloadProgress {
     private long mTotalBytes;
     private long mReceivedBytes;
 

@@ -8,6 +8,29 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.ChoreographerCompat;
 import com.facebook.react.modules.core.ReactChoreographer;
+import com.microsoft.codepush.react.enums.CodePushDeploymentStatus;
+import com.microsoft.codepush.react.enums.CodePushInstallMode;
+import com.microsoft.codepush.react.datacontracts.CodePushLocalPackage;
+import com.microsoft.codepush.react.datacontracts.CodePushRemotePackage;
+import com.microsoft.codepush.react.datacontracts.CodePushStatusReport;
+import com.microsoft.codepush.react.enums.CodePushSyncStatus;
+import com.microsoft.codepush.react.enums.CodePushUpdateState;
+import com.microsoft.codepush.react.exceptions.CodePushInvalidUpdateException;
+import com.microsoft.codepush.react.exceptions.CodePushNotInitializedException;
+import com.microsoft.codepush.react.exceptions.CodePushUnknownException;
+import com.microsoft.codepush.react.interfaces.CodePushDownloadProgressListener;
+import com.microsoft.codepush.react.interfaces.CodePushSyncStatusListener;
+import com.microsoft.codepush.react.interfaces.DownloadProgressCallback;
+import com.microsoft.codepush.react.interfaces.ReactInstanceHolder;
+import com.microsoft.codepush.react.managers.CodePushAcquisitionManager;
+import com.microsoft.codepush.react.managers.CodePushRestartManager;
+import com.microsoft.codepush.react.managers.CodePushTelemetryManager;
+import com.microsoft.codepush.react.managers.CodePushTelemetryManagerDeserializer;
+import com.microsoft.codepush.react.managers.CodePushUpdateManager;
+import com.microsoft.codepush.react.managers.CodePushUpdateManagerDeserializer;
+import com.microsoft.codepush.react.managers.SettingsManager;
+import com.microsoft.codepush.react.utils.CodePushUpdateUtils;
+import com.microsoft.codepush.react.utils.CodePushUtils;
 
 import android.app.Activity;
 import android.content.Context;
@@ -907,7 +930,7 @@ public class CodePushCore {
             CodePushUtils.log("Reporting binary update (" + statusReport.AppVersion + ")");
             new CodePushAcquisitionManager(nativeConfiguration).reportStatusDeploy(statusReport);
         } else {
-            if (statusReport.Status.equals(CodePushDeploymentStatus.Succeeded)) {
+            if (statusReport.Status.equals(CodePushDeploymentStatus.SUCCEEDED)) {
                 CodePushUtils.log("Reporting CodePush update success (" + statusReport.Label + ")");
             } else {
                 CodePushUtils.log("Reporting CodePush update rollback (" + statusReport.Label + ")");

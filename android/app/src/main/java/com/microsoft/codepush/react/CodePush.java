@@ -7,6 +7,13 @@ import com.facebook.react.bridge.JavaScriptModule;
 import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
+import com.microsoft.codepush.react.datacontracts.CodePushLocalPackage;
+import com.microsoft.codepush.react.datacontracts.CodePushRemotePackage;
+import com.microsoft.codepush.react.enums.CodePushUpdateState;
+import com.microsoft.codepush.react.interfaces.CodePushDownloadProgressListener;
+import com.microsoft.codepush.react.interfaces.CodePushSyncStatusListener;
+import com.microsoft.codepush.react.managers.CodePushAcquisitionManager;
+import com.microsoft.codepush.react.utils.CodePushUtils;
 
 import java.util.ArrayList;
 import java.util.List;

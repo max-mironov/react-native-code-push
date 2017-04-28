@@ -1,11 +1,8 @@
 package com.microsoft.codepush.react;
 
 import android.os.AsyncTask;
-import android.os.Handler;
-import android.os.Looper;
 
 import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -15,13 +12,19 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.modules.core.ChoreographerCompat;
 import com.facebook.react.modules.core.ReactChoreographer;
+import com.microsoft.codepush.react.enums.CodePushInstallMode;
+import com.microsoft.codepush.react.datacontracts.CodePushLocalPackage;
+import com.microsoft.codepush.react.datacontracts.CodePushRemotePackage;
+import com.microsoft.codepush.react.datacontracts.CodePushStatusReport;
+import com.microsoft.codepush.react.enums.CodePushSyncStatus;
+import com.microsoft.codepush.react.enums.CodePushUpdateState;
+import com.microsoft.codepush.react.interfaces.CodePushDownloadProgressListener;
+import com.microsoft.codepush.react.interfaces.CodePushSyncStatusListener;
+import com.microsoft.codepush.react.utils.CodePushUpdateUtils;
+import com.microsoft.codepush.react.utils.CodePushUtils;
 
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.IOException;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
