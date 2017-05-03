@@ -584,3 +584,4 @@ if (NativeCodePush) {
 }
 
 module.exports = CodePush;
+
