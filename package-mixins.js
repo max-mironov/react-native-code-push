@@ -1,5 +1,6 @@
 import { AcquisitionManager as Sdk } from "code-push/script/acquisition-sdk";
 import { NativeEventEmitter } from "react-native";
+import RestartManager from "./RestartManager";
 
 // This function is used to augment remote and local
 // package objects with additional functionality/properties
@@ -25,7 +26,10 @@ module.exports = (NativeCodePush) => {
         // Use the downloaded package info. Native code will save the package info
         // so that the client knows what the current package version is.
         try {
-          const downloadedPackage = await NativeCodePush.downloadUpdate(this, !!downloadProgressCallback);
+          const updatePackageCopy = Object.assign({}, this);
+          Object.keys(updatePackageCopy).forEach((key) => (typeof updatePackageCopy[key] === 'function') && delete updatePackageCopy[key]);
+
+          const downloadedPackage = await NativeCodePush.downloadUpdate(updatePackageCopy, !!downloadProgressCallback);
           reportStatusDownload && reportStatusDownload(this);
           return { ...downloadedPackage, ...local };
         } finally {
@@ -44,9 +48,9 @@ module.exports = (NativeCodePush) => {
       await NativeCodePush.installUpdate(localPackageCopy, installMode, minimumBackgroundDuration);
       updateInstalledCallback && updateInstalledCallback();
       if (installMode == NativeCodePush.codePushInstallModeImmediate) {
-        NativeCodePush.restartApp(false);
+        RestartManager.restartApp(false);
       } else {
-        NativeCodePush.clearPendingRestart();
+        RestartManager.clearPendingRestart();
         localPackage.isPending = true; // Mark the package as pending since it hasn't been applied yet
       }
     },

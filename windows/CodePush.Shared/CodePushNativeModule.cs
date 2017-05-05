@@ -44,9 +44,20 @@ namespace CodePush.ReactNative
                     { "codePushInstallModeImmediate", InstallMode.Immediate },
                     { "codePushInstallModeOnNextResume", InstallMode.OnNextResume },
                     { "codePushInstallModeOnNextRestart", InstallMode.OnNextRestart },
+
                     { "codePushUpdateStateRunning", UpdateState.Running },
                     { "codePushUpdateStatePending", UpdateState.Pending },
                     { "codePushUpdateStateLatest", UpdateState.Latest },
+
+                    { "codePushSyncStatusUpToDate", SyncStatus.UP_TO_DATE },
+                    { "codePushSyncStatusUpdateInstalled", SyncStatus.UPDATE_INSTALLED },
+                    { "codePushSyncStatusUpdateIgnored", SyncStatus.UPDATE_IGNORED },
+                    { "codePushSyncStatusUnknownError", SyncStatus.UNKNOWN_ERROR },
+                    { "codePushSyncStatusSyncInProgress", SyncStatus.SYNC_IN_PROGRESS },
+                    { "codePushSyncStatusCheckingForUpdate", SyncStatus.CHECKING_FOR_UPDATE },
+                    { "codePushSyncStatusAwaitingUserAction", SyncStatus.AWAITING_USER_ACTION },
+                    { "codePushSyncStatusDownloadingPackage", SyncStatus.DOWNLOADING_PACKAGE },
+                    { "codePushSyncStatusInstallingUpdate", SyncStatus.INSTALLING_UPDATE },
                 };
             }
         }

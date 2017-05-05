@@ -5,6 +5,6 @@
 -(void) allowRestart;
 -(void) disallowRestart;
 -(void) clearPendingRestart;
--(void) restartApp:(BOOL)onlyIfUpdateIsPending;
+-(void) restartApplication:(BOOL)onlyIfUpdateIsPending;
 
 @end

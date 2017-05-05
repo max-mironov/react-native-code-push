@@ -17,5 +17,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)MinimumBackgroundListener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SettingsManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)UpdateState.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SyncStatus.cs" />
   </ItemGroup>
 </Project>
