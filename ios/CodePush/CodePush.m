@@ -1075,7 +1075,7 @@ static NSString *bundleResourceSubdirectory = nil;
         durationInBackground = [[NSDate date] timeIntervalSinceDate:_lastResignedDate];
     }
 
-    if (durationInBackground >= _minimumBackgroundDuration) {
+    if (durationInBackground >= _minimumBackgroundDuration && restartAllowed) {
         [self loadBundle];
     }
 }
