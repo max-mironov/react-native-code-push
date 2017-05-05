@@ -11,7 +11,7 @@
         BOOL queuedObject = (BOOL)[[self restartQueue] objectAtIndex:0];
         [[self restartQueue] removeObjectAtIndex:0];
 
-        [self restartApp:queuedObject];
+        [self restartApplication:queuedObject];
     }
     return;
 }
@@ -34,7 +34,7 @@
     [[self restartQueue] removeAllObjects];
 }
 
--(void) restartApp:(BOOL)onlyIfUpdateIsPending
+-(void) restartApplication:(BOOL)onlyIfUpdateIsPending
 {
     if ([self restartInProgress])
     {
@@ -48,7 +48,7 @@
     else
     {
         [self setRestartInProgress:YES];
-        if ([self restartApplication:onlyIfUpdateIsPending]){
+        if ([self restartApp:onlyIfUpdateIsPending]){
             // The app has already restarted, so there is no need to
             // process the remaining queued restarts.
             CPLog(@"Restarting app");

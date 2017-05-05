@@ -80,7 +80,7 @@
 + (void)setUsingTestConfiguration:(BOOL)shouldUseTestConfiguration;
 + (void)clearUpdates;
 
-- (BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending;
+- (BOOL)restartApp:(BOOL)onlyIfUpdateIsPending;
 
 //restart manager properties
 @property (nonatomic) BOOL restartAllowed;

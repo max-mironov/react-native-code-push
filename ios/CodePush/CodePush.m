@@ -208,7 +208,7 @@ static NSString *bundleResourceSubdirectory = nil;
     [CodePushConfig current].deploymentKey = deploymentKey;
 }
 
-- (BOOL)restartApplication:(BOOL)onlyIfUpdateIsPending
+- (BOOL)restartApp:(BOOL)onlyIfUpdateIsPending
 {
     // If this is an unconditional restart request, or there
     // is current pending update, then reload the app.
@@ -1047,7 +1047,7 @@ static NSString *bundleResourceSubdirectory = nil;
             }
         }
         if (_installMode == CodePushInstallModeImmediate){
-            [self restartApp:NO];
+            [self restartApplication:NO];
         } else {
             [self clearPendingRestart];
         }
@@ -1282,12 +1282,21 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
                      resolve:(RCTPromiseResolveBlock)resolve
                     rejecter:(RCTPromiseRejectBlock)reject)
 {
-    BOOL result = [self restartApplication:onlyIfUpdateIsPending];
+    BOOL result = [self restartApp:onlyIfUpdateIsPending];
     if (result){
         resolve(@(YES));
         return;
     }
     resolve(@(NO));
+}
+
+//this is native implementation of restartManager.restartApp function
+RCT_EXPORT_METHOD(restartApplication:(BOOL)onlyIfUpdateIsPending
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self restartApplication:onlyIfUpdateIsPending];
+    resolve(@(YES));
 }
 
 RCT_EXPORT_METHOD(clearPendingRestart:(RCTPromiseResolveBlock)resolve
