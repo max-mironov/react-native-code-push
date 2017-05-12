@@ -232,6 +232,11 @@ public class CodePushNativeModule extends ReactContextBaseJavaModule implements 
 
     @ReactMethod
     public void restartApp(boolean onlyIfUpdateIsPending, Promise promise) {
+        promise.resolve(mCodePushCore.restartApp(onlyIfUpdateIsPending));
+    }
+
+    @ReactMethod
+    public void restartApplication(boolean onlyIfUpdateIsPending, Promise promise) {
         promise.resolve(mCodePushCore.getRestartManager().restartApp(onlyIfUpdateIsPending));
     }
 
